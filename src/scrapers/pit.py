@@ -1,11 +1,22 @@
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from src.models import Event
 
 class PitScraper:
-    BASE_URL = "https://thepit-nyc.com"
-    SHOWS_PAGE = f"{BASE_URL}/shows/"
+    BASE_URL = "https://thepit-nyc.com/calendar/"
+
+    def _get_month_params(self) -> list[str]:
+        months = []
+        for i in range(3): # current + next 2 months
+            month_date = datetime.now().month + relativedelta(months=i)
+            if i == 0:
+                months.append("")
+            else:
+                formatted = month_date.strftime("?month=%b-%Y") # e.g., "?month=Sep-2025"
+                months.append(formatted)
+        return months
 
     def fetch(self) -> list[Event]:
         events = []
