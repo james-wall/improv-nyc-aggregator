@@ -20,43 +20,54 @@ class PitScraper:
 
     def fetch(self) -> list[Event]:
         events = []
-        try:
-            response = requests.get(self.SHOWS_PAGE)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+        
+        for month_param in self._get_month_params():
+            url = self.BASE_URL + month_param
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, 'html.parser')
 
-            show_cards = soup.select(".fusion-portfolio-post")
 
-            for card in show_cards:
-                title_elem = card.select_one(".fusion-title a")
-                datetime_elem = card.select_one(".fusion-post-meta")
-                desc_elem = card.select_one(".fusion-post-content-container")
+                # Each show is in a <li class="event ..."> inside a <ul class="events">
+                event_items = soup.select("ul.events > li.event")
 
-                if not title_elem or not datetime_elem:
-                    continue
 
-                title = title_elem.get_text(strip=True)
-                url = title_elem.get("href")
-                date_text = datetime_elem.get_text(strip=True)
-                description = desc_elem.get_text(strip=True) if desc_elem else ""
+                for item in event_items:
+                    title_elem = item.select_one(".event__title")
+                    link_elem = item.select_one("a")
+                    time_elem = item.select_one(".action__time")
+                    venue_elem = item.select_one(".venue__title")
 
-                # Attempt to parse date (e.g., "August 23 @ 9:30 pm")
+
+                title = title_elem.get_text(strip=True) if title_elem else ""
+                url = link_elem['href'] if link_elem and link_elem.has_attr('href') else ""
+                time_text = time_elem.get_text(strip=True) if time_elem else ""
+                venue = venue_elem.get_text(strip=True) if venue_elem else "The PIT"
+
+
+                # Try to guess datetime from URL and time (URL usually has event slug but no date)
+                # Note: For real scraping, you'd want to combine with the day block info
                 try:
-                    event_time = datetime.strptime(date_text, "%B %d @ %I:%M %p")
-                except ValueError:
+                # Placeholder: In reality we’d need to extract the date from the DOM hierarchy
+                    event_time = datetime.strptime(time_text, "%I:%M%p")
+                except Exception:
                     event_time = None
+
 
                 event = Event(
                     title=title,
-                    venue="The PIT NYC",
+                    venue=venue,
                     start_time=event_time,
-                    description=description,
+                    description="", # Can expand later if needed
                     url=url,
                     source="pit"
                 )
                 events.append(event)
 
-        except Exception as e:
-            print(f"Error fetching PIT events: {e}")
 
-        return events
+            except Exception as e:
+                print(f"Error fetching PIT events for {month_param or 'current month'}: {e}")
+
+
+                return events
