@@ -9,12 +9,12 @@ class PitScraper:
 
     def _get_month_params(self) -> list[str]:
         months = []
-        for i in range(3): # current + next 2 months
-            month_date = datetime.now().month + relativedelta(months=i)
+        for i in range(3):  # current + next 2 months
+            month_date = datetime.now() + relativedelta(months=i)
             if i == 0:
-                months.append("")
+                months.append("")  # current month = default view
             else:
-                formatted = month_date.strftime("?month=%b-%Y") # e.g., "?month=Sep-2025"
+                formatted = month_date.strftime("?month=%b-%Y")  # e.g., "?month=Sep-2025"
                 months.append(formatted)
         return months
 
@@ -68,6 +68,6 @@ class PitScraper:
 
             except Exception as e:
                 print(f"Error fetching PIT events for {month_param or 'current month'}: {e}")
-
-
-                return events
+                continue
+            
+        return events
