@@ -8,9 +8,12 @@ from src.scrapers.pit import PitScraper
 from src.models import Event
 
 
-def main():
+def main(dev=False):
     scraper = PitScraper()
-    events = scraper.fetch()
+    if dev:
+        events = scraper.fetch(max_days=2)
+    else:
+        events = scraper.fetch()
 
     # if not events:
     #     print("No events found.")
@@ -27,4 +30,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    dev_mode = "dev" in sys.argv
+    main(dev=dev_mode)
+

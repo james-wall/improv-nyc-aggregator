@@ -31,7 +31,7 @@ class PitScraper:
             print(f"  ⚠️ Error fetching description for {url}: {e}")
         return ""
 
-    def fetch(self) -> list[Event]:
+    def fetch(self, max_days: int=None) -> list[Event]:
         events = []
         for month_param in self._get_month_params():
             url = self.BASE_URL + month_param
@@ -41,7 +41,12 @@ class PitScraper:
                 soup = BeautifulSoup(response.text, 'html.parser')
 
                 day_blocks = soup.select("div.date.day")
-                for day in day_blocks:
+                for day_count, day in enumerate(day_blocks):
+
+                    # Check if we're in dev mode and have reached the max days
+                    if max_days is not None and day_count >= max_days:
+                        break
+                    
                     # Get date info
                     month_span = day.select_one(".day__month")
                     day_span = day.select_one(".day__number")
@@ -87,7 +92,7 @@ class PitScraper:
                             url=url,
                             source="pit"
                         )
-                        
+
                         events.append(event)
 
             except Exception as e:
