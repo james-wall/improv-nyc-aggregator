@@ -17,6 +17,19 @@ class PitScraper:
                 formatted = month_date.strftime("?month=%b-%Y")  # e.g., ?month=Sep-2025
                 months.append(formatted)
         return months
+    
+    def fetch_event_description(self, url: str) -> str:
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            desc_section = soup.select_one("div.event__description section.wysiwyg")
+            if desc_section:
+                return desc_section.get_text(separator="\n", strip=True)
+        except Exception as e:
+            print(f"  ⚠️ Error fetching description for {url}: {e}")
+        return ""
 
     def fetch(self) -> list[Event]:
         events = []
@@ -64,14 +77,17 @@ class PitScraper:
                         except Exception:
                             full_dt = event_date
 
+                        description = self.fetch_event_description(url)
+
                         event = Event(
                             title=title,
                             venue=venue,
                             start_time=full_dt,
-                            description="",
+                            description=description,
                             url=url,
                             source="pit"
                         )
+                        
                         events.append(event)
 
             except Exception as e:
