@@ -10,6 +10,11 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 model = genai.GenerativeModel("gemini-1.5-flash")
 
+PROMPT_REGISTRY = {
+    "default": "src/prompts/summarizer_prompt.txt",
+    "humorous": "src/prompts/summarizer_humorous.txt",
+    "editorial": "src/prompts/summarizer_editorial.txt"
+}
 
 def format_events_for_prompt(events: List[Event]) -> str:
     lines = []
@@ -22,26 +27,23 @@ def format_events_for_prompt(events: List[Event]) -> str:
     return "\n".join(lines)
 
 
-def build_prompt(event_block: str) -> str:
-    return f"""
-You are an NYC improv newsletter editor with a witty, upbeat tone.
-
-Summarize the following upcoming events at The PIT. Your goal is to make them sound fun, interesting, and worth attending.
-Use casual, energetic language. Mention any standout titles, interesting combinations, or unique venues or times.
-
-Here are the events:
-{event_block}
-
-Write a short, friendly digest paragraph. Sign off with something like \"See you there!\"
-"""
+def build_prompt(event_block: str, style: str = "default") -> str:
+    prompt_path = PROMPT_REGISTRY.get(style, PROMPT_REGISTRY["default"])
+    try:
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            template = f.read()
+        return template.replace("{event_block}", event_block)
+    except FileNotFoundError:
+        print(f"❌ Prompt template not found: {prompt_path}. Using fallback prompt.")
+        return f"Summarize the following events:\n{event_block}"
 
 
-def summarize_events(events: List[Event]) -> str:
+def summarize_events(events: List[Event], style: str = "default") -> str:
     if not events:
         return "No upcoming events to summarize."
 
     event_block = format_events_for_prompt(events)
-    prompt = build_prompt(event_block)
+    prompt = build_prompt(event_block, style=style)
 
     try:
         response = model.generate_content(prompt)
@@ -71,4 +73,4 @@ if __name__ == "__main__":
             source="pit"
         )
     ]
-    print(summarize_events(dummy_events))
+    print(summarize_events(dummy_events, style="default"))
