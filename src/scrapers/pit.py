@@ -20,7 +20,7 @@ class PitScraper:
     
     def fetch_event_description(self, url: str) -> str:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -36,7 +36,8 @@ class PitScraper:
         for month_param in self._get_month_params():
             url = self.BASE_URL + month_param
             try:
-                response = requests.get(url)
+                print(f"🔗 Fetching: {url}")
+                response = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
                 response.raise_for_status()
                 soup = BeautifulSoup(response.text, 'html.parser')
 
