@@ -209,3 +209,6 @@ __marimo__/
 # Secrets
 credentials.json
 token.json
+
+# Test files
+last_summary.txt
