@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from typing import List
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 from src.models import Event
 
