@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import time
 from selenium import webdriver
@@ -70,6 +70,7 @@ class PitScraper:
                 time.sleep(wait_time)
 
     def _get_month_params(self) -> list[str]:
+        # legacy helper; still returns current + two following months
         months = []
         for i in range(3):  # current + next 2 months
             month_date = datetime.now() + relativedelta(months=i)
@@ -79,6 +80,24 @@ class PitScraper:
                 formatted = month_date.strftime("?month=%b-%Y")  # e.g., ?month=Sep-2025
                 months.append(formatted)
         return months
+
+    def _get_month_params_for_range(self, future_days: int) -> list[str]:
+        """Return a list of URL suffixes needed to cover today through
+        today+future_days.  Includes the base URL for the current month and
+        additional ?month=Mon-Y entries for subsequent months as necessary."""
+        start = datetime.now().date()
+        end = start + timedelta(days=future_days)
+        params = []
+        # iterate month-by-month from start to end
+        current = datetime(start.year, start.month, 1).date()
+        while current <= end:
+            if current.month == start.month and current.year == start.year:
+                params.append("")
+            else:
+                params.append(f"?month={current.strftime('%b-%Y')}")
+            # advance one month
+            current = (datetime(current.year, current.month, 15) + relativedelta(months=1)).date()
+        return params
     
     def fetch_event_description(self, url: str) -> str:
         try:
@@ -100,9 +119,19 @@ class PitScraper:
         return ""
 
     # TODO rework logic so we don't hit rate limits, currently works hackily with a hardcoded 1 day limit
-    def fetch(self, max_days: int=1) -> list[Event]:
+    def fetch(self, future_days: int = 3) -> list[Event]:
+        """Return events occurring within the next `future_days` days (from
+        now).  A small default keeps the scraper focused; caller can override
+        (e.g. dev mode passes 2)."""
+        # under the new requirements we ignore `future_days` entirely;
+        # instead we only scrape the week container marked as current and drop
+        # any individual day that has a past marker
         events = []
-        for month_param in self._get_month_params():
+        # we still use month parameters so that if the current week spills into
+        # the next month the appropriate URL will be fetched
+        month_params = self._get_month_params_for_range(future_days)
+
+        for month_param in month_params:
             url = self.BASE_URL + month_param
             try:
                 print(f"🔗 Fetching: {url}")
@@ -114,19 +143,29 @@ class PitScraper:
                     response = self._make_request(url)
                     soup = BeautifulSoup(response.text, 'html.parser')
 
-                day_blocks = soup.select("div.date.day")
-                for day_count, day in enumerate(day_blocks):
+                # restrict to current week container if present
+                week_section = soup.select_one("div.week--current")
+                if week_section:
+                    day_blocks = week_section.select("div.date.day")
+                else:
+                    day_blocks = soup.select("div.date.day")
 
-                    # Check if we're in dev mode and have reached the max days
-                    if max_days is not None and day_count >= max_days:
-                        break
-                    
-                    # Get date info
+                # drop any day blocks marked as past (class contains 'past')
+                filtered = []
+                for day in day_blocks:
+                    cls = " ".join(day.get("class", []))
+                    if "past" in cls:
+                        continue
+                    filtered.append(day)
+                day_blocks = filtered
+
+                for day in day_blocks:
+                    # at this point we're only looking at candidate days;
+                    # parse the date for logging or potential future filtering
                     month_span = day.select_one(".day__month")
                     day_span = day.select_one(".day__number")
                     if not month_span or not day_span:
                         continue
-
                     try:
                         month = month_span.get_text(strip=True)
                         day_num = day_span.get_text(strip=True)
@@ -135,7 +174,6 @@ class PitScraper:
                     except Exception:
                         event_date = None
 
-                    # Get each event in the day block
                     event_items = day.select("ul.events > li.event")
                     for item in event_items:
                         title_elem = item.select_one(".event__title")

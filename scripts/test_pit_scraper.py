@@ -8,12 +8,11 @@ from src.scrapers.pit import PitScraper
 from src.models import Event
 
 
-def main(dev=False, use_selenium=False):
+def main(dev=False, use_selenium=False, future_days: int = 7):
     scraper = PitScraper(use_selenium=use_selenium)
-    if dev:
-        events = scraper.fetch(max_days=2)
-    else:
-        events = scraper.fetch()
+    if dev and future_days == 7:
+        future_days = 2
+    events = scraper.fetch(future_days=future_days)
 
     # if not events:
     #     print("No events found.")
@@ -33,5 +32,11 @@ if __name__ == "__main__":
     import sys
     dev_mode = "dev" in sys.argv
     use_selenium = "selenium" in sys.argv
-    main(dev=dev_mode, use_selenium=use_selenium)
+    # look for numeric arg to override days
+    future_days = 3
+    for arg in sys.argv[1:]:
+        if arg.isdigit():
+            future_days = int(arg)
+            break
+    main(dev=dev_mode, use_selenium=use_selenium, future_days=future_days)
 
