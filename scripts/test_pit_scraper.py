@@ -8,8 +8,8 @@ from src.scrapers.pit import PitScraper
 from src.models import Event
 
 
-def main(dev=False):
-    scraper = PitScraper()
+def main(dev=False, use_selenium=False):
+    scraper = PitScraper(use_selenium=use_selenium)
     if dev:
         events = scraper.fetch(max_days=2)
     else:
@@ -32,5 +32,6 @@ def main(dev=False):
 if __name__ == "__main__":
     import sys
     dev_mode = "dev" in sys.argv
-    main(dev=dev_mode)
+    use_selenium = "selenium" in sys.argv
+    main(dev=dev_mode, use_selenium=use_selenium)
 

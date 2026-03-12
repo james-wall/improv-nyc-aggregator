@@ -2,10 +2,72 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 from src.models import Event
 
 class PitScraper:
     BASE_URL = "https://thepit-nyc.com/calendar/"
+    
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Cache-Control": "max-age=0",
+    }
+    
+    def __init__(self, use_selenium: bool = False):
+        """If use_selenium is True, spin up a headless Chrome driver. Otherwise
+        fall back to a requests.Session with sensible headers. The VPN should
+        normally be sufficient to avoid IP blocks, so selenium is optional."""
+        self.use_selenium = use_selenium
+        if use_selenium:
+            chrome_options = Options()
+            chrome_options.add_argument("--headless")  # Run in headless mode
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            try:
+                self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+            except Exception as e:
+                # if Chrome binary isn't available, fallback to requests
+                print(f"⚠️ Selenium init failed, falling back to requests: {e}")
+                self.use_selenium = False
+        if not use_selenium:
+            # session headers for non-selenium requests
+            self.session = requests.Session()
+            self.session.headers.update(self.HEADERS)
+
+    def _make_request(self, url: str, headers: dict = None, max_retries: int = 3):
+        """Make a GET request with retry logic and exponential backoff."""
+        request_headers = self.session.headers.copy()
+        if headers:
+            request_headers.update(headers)
+        
+        print("making request for: " + str(url))
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(url, timeout=60, headers=request_headers)
+                response.raise_for_status()
+                return response
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    raise e
+                wait_time = 2 ** attempt  # exponential backoff
+                print(f"Request failed, retrying in {wait_time} seconds... ({e})")
+                time.sleep(wait_time)
 
     def _get_month_params(self) -> list[str]:
         months = []
@@ -20,10 +82,16 @@ class PitScraper:
     
     def fetch_event_description(self, url: str) -> str:
         try:
-            response = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+            if self.use_selenium and hasattr(self, 'driver'):
+                self.driver.get(url)
+                time.sleep(5)  # Wait for page to load
+                html = self.driver.page_source
+            else:
+                headers = {"Referer": self.BASE_URL}
+                response = self._make_request(url, headers=headers)
+                html = response.text
 
+            soup = BeautifulSoup(html, 'html.parser')
             desc_section = soup.select_one("div.event__description section.wysiwyg")
             if desc_section:
                 return desc_section.get_text(separator="\n", strip=True)
@@ -31,15 +99,20 @@ class PitScraper:
             print(f"  ⚠️ Error fetching description for {url}: {e}")
         return ""
 
-    def fetch(self, max_days: int=None) -> list[Event]:
+    # TODO rework logic so we don't hit rate limits, currently works hackily with a hardcoded 1 day limit
+    def fetch(self, max_days: int=1) -> list[Event]:
         events = []
         for month_param in self._get_month_params():
             url = self.BASE_URL + month_param
             try:
                 print(f"🔗 Fetching: {url}")
-                response = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
-                response.raise_for_status()
-                soup = BeautifulSoup(response.text, 'html.parser')
+                if self.use_selenium and hasattr(self, 'driver'):
+                    self.driver.get(url)
+                    time.sleep(3)  # Wait for page to load
+                    soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+                else:
+                    response = self._make_request(url)
+                    soup = BeautifulSoup(response.text, 'html.parser')
 
                 day_blocks = soup.select("div.date.day")
                 for day_count, day in enumerate(day_blocks):
@@ -95,9 +168,16 @@ class PitScraper:
                         )
 
                         events.append(event)
+                        
+                        # Small delay to avoid rate limiting
+                        time.sleep(2)
 
             except Exception as e:
                 print(f"Error fetching PIT events for {month_param or 'current month'}: {e}")
                 continue
+            
+            # Delay between month fetches to avoid rate limiting
+            if month_param:
+                time.sleep(5)
 
         return events
