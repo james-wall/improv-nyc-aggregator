@@ -1,20 +1,33 @@
 import os
 from datetime import datetime
 from typing import List
-from google import genai
+
 from dotenv import load_dotenv
+from google import genai
+
 from src.models import Event
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+# Option A: Gemini Developer API
+# Expects GEMINI_API_KEY or GOOGLE_API_KEY in your environment.
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+# If you later want Vertex AI instead, use:
+# client = genai.Client(
+#     vertexai=True,
+#     project=os.getenv("GOOGLE_CLOUD_PROJECT"),
+#     location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
+# )
+
+MODEL_NAME = "gemini-2.5-flash-lite"
 
 PROMPT_REGISTRY = {
     "default": "src/prompts/summarizer_prompt.txt",
     "humorous": "src/prompts/summarizer_humorous.txt",
-    "editorial": "src/prompts/summarizer_editorial.txt"
+    "editorial": "src/prompts/summarizer_editorial.txt",
 }
+
 
 def format_events_for_prompt(events: List[Event]) -> str:
     lines = []
@@ -22,7 +35,7 @@ def format_events_for_prompt(events: List[Event]) -> str:
         if not e.start_time:
             continue
         date_str = e.start_time.strftime("%b %d, %I:%M %p")
-        line = f"- \"{e.title}\", {date_str}, {e.venue}"
+        line = f'- "{e.title}", {date_str}, {e.venue}'
         lines.append(line)
     return "\n".join(lines)
 
@@ -46,14 +59,16 @@ def summarize_events(events: List[Event], style: str = "default") -> str:
     prompt = build_prompt(event_block, style=style)
 
     try:
-        response = model.generate_content(prompt)
-        return response.text.strip()
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+        )
+        return response.text.strip() if response.text else "[No summary returned]"
     except Exception as e:
         print(f"Error generating summary: {e}")
         return "[Error generating summary]"
 
 
-# For quick testing
 if __name__ == "__main__":
     dummy_events = [
         Event(
@@ -73,4 +88,5 @@ if __name__ == "__main__":
             source="pit"
         )
     ]
+
     print(summarize_events(dummy_events, style="default"))
