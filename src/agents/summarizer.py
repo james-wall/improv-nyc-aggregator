@@ -36,6 +36,8 @@ def format_events_for_prompt(events: List[Event]) -> str:
             continue
         date_str = e.start_time.strftime("%b %d, %I:%M %p")
         line = f'- "{e.title}", {date_str}, {e.venue}'
+        if e.description:
+            line += f'\n  Description: {e.description.strip()}'
         lines.append(line)
     return "\n".join(lines)
 
