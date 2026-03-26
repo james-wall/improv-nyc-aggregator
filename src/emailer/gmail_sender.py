@@ -25,11 +25,13 @@ def authenticate_gmail():
 
     return build("gmail", "v1", credentials=creds)
 
-def send_email(to, subject, body, from_name="Improv NYC Digest"):
+def send_email(to, subject, body, from_name="Improv NYC Digest", html=None):
     service = authenticate_gmail()
 
     message = EmailMessage()
     message.set_content(body)
+    if html:
+        message.add_alternative(html, subtype="html")
     message["To"] = to
     message["From"] = f"{from_name} <me>"
     message["Subject"] = subject
