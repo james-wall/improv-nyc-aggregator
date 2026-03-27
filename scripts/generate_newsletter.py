@@ -51,7 +51,14 @@ def scrape_all(future_days: int):
 
     # Sort by start time (None-times go last)
     all_events.sort(key=lambda e: e.start_time or datetime.max)
-    return all_events
+
+    # Filter out class shows for the newsletter (they're still in the DB)
+    class_count = sum(1 for e in all_events if e.is_class_show)
+    newsletter_events = [e for e in all_events if not e.is_class_show]
+    if class_count:
+        print(f"  📚 Filtered out {class_count} class/student shows")
+
+    return newsletter_events
 
 
 def markdown_to_html(md: str) -> str:

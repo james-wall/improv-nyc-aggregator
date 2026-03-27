@@ -12,17 +12,18 @@ def init_db():
     with _conn() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS shows (
-                id          INTEGER PRIMARY KEY,
-                url         TEXT UNIQUE NOT NULL,
-                title       TEXT,
-                venue       TEXT,
-                source      TEXT,
-                category    TEXT,
-                description TEXT,
-                run_start   TEXT,
-                run_end     TEXT,
-                first_seen  TEXT NOT NULL,
-                last_seen   TEXT NOT NULL
+                id             INTEGER PRIMARY KEY,
+                url            TEXT UNIQUE NOT NULL,
+                title          TEXT,
+                venue          TEXT,
+                source         TEXT,
+                category       TEXT,
+                description    TEXT,
+                is_class_show  INTEGER NOT NULL DEFAULT 0,
+                run_start      TEXT,
+                run_end        TEXT,
+                first_seen     TEXT NOT NULL,
+                last_seen      TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS occurrences (
@@ -32,6 +33,11 @@ def init_db():
                 UNIQUE(show_id, start_time)
             );
         """)
+        # Migration: add is_class_show to existing DBs
+        try:
+            conn.execute("ALTER TABLE shows ADD COLUMN is_class_show INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 @contextmanager
@@ -58,6 +64,7 @@ def upsert_show(
     source: str,
     description: str = None,
     category: str = None,
+    is_class_show: bool = False,
     run_start: str = None,
     run_end: str = None,
 ) -> int:
@@ -76,27 +83,28 @@ def upsert_show(
             conn.execute(
                 """
                 UPDATE shows
-                SET title       = ?,
-                    venue       = ?,
-                    source      = ?,
-                    description = COALESCE(?, description),
-                    category    = COALESCE(?, category),
-                    run_start   = COALESCE(?, run_start),
-                    run_end     = COALESCE(?, run_end),
-                    last_seen   = ?
+                SET title          = ?,
+                    venue          = ?,
+                    source         = ?,
+                    description    = COALESCE(?, description),
+                    category       = COALESCE(?, category),
+                    is_class_show  = ?,
+                    run_start      = COALESCE(?, run_start),
+                    run_end        = COALESCE(?, run_end),
+                    last_seen      = ?
                 WHERE url = ?
                 """,
-                (title, venue, source, description, category, run_start, run_end, now, url),
+                (title, venue, source, description, category, int(is_class_show), run_start, run_end, now, url),
             )
             return existing["id"]
         else:
             cur = conn.execute(
                 """
                 INSERT INTO shows
-                    (url, title, venue, source, description, category, run_start, run_end, first_seen, last_seen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (url, title, venue, source, description, category, is_class_show, run_start, run_end, first_seen, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (url, title, venue, source, description, category, run_start, run_end, now, now),
+                (url, title, venue, source, description, category, int(is_class_show), run_start, run_end, now, now),
             )
             return cur.lastrowid
 

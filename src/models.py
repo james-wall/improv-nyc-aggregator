@@ -11,3 +11,4 @@ class Event:
     url: str
     source: str
     time_known: bool = True
+    is_class_show: bool = False

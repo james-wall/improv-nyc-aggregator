@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import time
 from src.models import Event
 from src.store import db as store
+from src.utils.formatting import is_class_show
 
 
 class UcbScraper:
@@ -138,12 +139,14 @@ class UcbScraper:
                     description = excerpt_el.get_text(strip=True) if excerpt_el else ""
 
                 # Persist to knowledge store
+                class_show = is_class_show(title)
                 show_id = store.upsert_show(
                     url=event_url,
                     title=title,
                     venue=venue,
                     source="ucb",
                     description=description or None,
+                    is_class_show=class_show,
                 )
                 if start_dt:
                     store.upsert_occurrence(show_id, start_dt.isoformat())
@@ -156,6 +159,7 @@ class UcbScraper:
                     url=event_url,
                     source="ucb",
                     time_known=has_time,
+                    is_class_show=class_show,
                 ))
 
         except Exception as e:

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import time
 from src.models import Event
 from src.store import db as store
+from src.utils.formatting import is_class_show
 
 
 class BccScraper:
@@ -131,12 +132,14 @@ class BccScraper:
                     description = self._extract_description(item)
 
                 # Persist to knowledge store
+                class_show = is_class_show(title)
                 show_id = store.upsert_show(
                     url=full_url,
                     title=title,
                     venue=venue,
                     source="bcc",
                     description=description or None,
+                    is_class_show=class_show,
                 )
                 store.upsert_occurrence(show_id, start_dt.isoformat())
 
@@ -147,6 +150,7 @@ class BccScraper:
                     description=description,
                     url=full_url,
                     source="bcc",
+                    is_class_show=class_show,
                 ))
 
         except Exception as e:
