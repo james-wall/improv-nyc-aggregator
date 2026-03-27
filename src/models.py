@@ -10,3 +10,4 @@ class Event:
     description: str
     url: str
     source: str
+    time_known: bool = True

@@ -31,23 +31,42 @@ PROMPT_REGISTRY = {
 
 
 def format_events_for_prompt(events: List[Event]) -> str:
-    lines = []
+    """Format events grouped by date, sorted chronologically within each day."""
+    from collections import defaultdict
+
+    by_date = defaultdict(list)
     for e in events:
         if not e.start_time:
             continue
-        date_str = e.start_time.strftime("%A %b %d, %I:%M %p")
-        line = f'- "{e.title}", {date_str}, {e.venue}'
-        if e.description:
-            line += f'\n  Description: {e.description.strip()}'
-        if e.url:
-            line += f'\n  Link: {e.url}'
-        lines.append(line)
-    return "\n".join(lines)
+        date_key = e.start_time.strftime("%A, %B %d")
+        by_date[date_key].append(e)
+
+    # Sort dates chronologically
+    sorted_dates = sorted(by_date.keys(), key=lambda d: by_date[d][0].start_time.date())
+
+    sections = []
+    for date_key in sorted_dates:
+        day_events = sorted(by_date[date_key], key=lambda e: (not e.time_known, e.start_time))
+        lines = [f"### {date_key}"]
+        for e in day_events:
+            if e.time_known:
+                line = f'- [{e.start_time.strftime("%I:%M %p")}] "{e.title}" at {e.venue}'
+            else:
+                line = f'- "{e.title}" at {e.venue} — check venue for showtime'
+            if e.description:
+                line += f'\n  Description: {e.description.strip()}'
+            if e.url:
+                line += f'\n  Link: {e.url}'
+            lines.append(line)
+        sections.append("\n".join(lines))
+
+    return "\n\n".join(sections)
 
 
 def build_prompt(event_block: str, style: str = "default",
                  days: int = 7, date_range: str = "",
-                 event_count: int = 0, venue_count: int = 0) -> str:
+                 event_count: int = 0, venue_count: int = 0,
+                 venue_list: str = "") -> str:
     prompt_path = PROMPT_REGISTRY.get(style, PROMPT_REGISTRY["default"])
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
@@ -57,6 +76,7 @@ def build_prompt(event_block: str, style: str = "default",
         result = result.replace("{date_range}", date_range)
         result = result.replace("{event_count}", str(event_count))
         result = result.replace("{venue_count}", str(venue_count))
+        result = result.replace("{venue_list}", venue_list)
         return result
     except FileNotFoundError:
         print(f"❌ Prompt template not found: {prompt_path}. Using fallback prompt.")
@@ -70,9 +90,11 @@ def summarize_events(events: List[Event], style: str = "default",
 
     event_block = format_events_for_prompt(events)
     venues = set(e.venue for e in events)
+    venue_list = ", ".join(sorted(venues))
     prompt = build_prompt(
         event_block, style=style, days=days, date_range=date_range,
         event_count=len(events), venue_count=len(venues),
+        venue_list=venue_list,
     )
 
     try:

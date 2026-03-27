@@ -140,6 +140,8 @@ class PitScraper:
                         event_url = link_elem['href'] if link_elem and link_elem.has_attr('href') else ""
                         time_text = time_elem.get_text(strip=True).replace("\n", "") if time_elem else ""
                         venue = venue_elem.get_text(strip=True) if venue_elem else "The PIT"
+                        if venue.lower() == "the fishbowl":
+                            venue = "The PIT Fishbowl"
 
                         try:
                             full_dt = datetime.strptime(f"{event_date.strftime('%Y-%m-%d')} {time_text}", "%Y-%m-%d %I:%M%p") if event_date and time_text else event_date

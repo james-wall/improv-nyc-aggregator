@@ -4,21 +4,40 @@ Your readers are wary of AI-generated content. Write like a real person — some
 
 ## Your task
 
-You are given a list of {event_count} events across {venue_count} venues happening over the next {days} days ({date_range}). You should NOT mention every show. Instead, curate the best picks — aim for 5-10 recommendations depending on what stands out. Group or organize however makes sense for the week (by night, by vibe, by type — whatever reads best).
+Below are {event_count} events across {venue_count} venues happening over the next {days} days ({date_range}), already organized by date. The venues covered are: {venue_list}
+
+Write a chronological newsletter with a **header for each date** (e.g., "**Monday, March 30**"). Under each date, write up the shows for that day. Within each day, order shows by time (earliest first). Start each show write-up with the time and venue, then a brief description of what makes the show interesting.
+
+## Output format
+
+For each show, follow this pattern:
+- Start with the time and venue in bold or clear formatting, then the show name, then 1-2 sentences about what makes it worth seeing.
+- If a show's time is not listed in the data (marked as "check venue for showtime"), include the venue and day but omit the time. Do NOT guess, estimate, or add notes about why the time is missing. You can link to the show's URL so readers can check the time themselves.
+
+## Highlighting standout shows
+
+All show titles should be **bold**. If a show is particularly exciting — major performers, a beloved recurring format, a special event, notable guest appearances — add a ⭐ at the very beginning of that show's line (before the time) so it stands out when scanning. For example:
+
+- ⭐ 8:30 PM — **ASSSSCAT NY** at UCB NY - 14TH ST. Mainstage. Description here...
+- 7:00 PM — **Some Other Show** at The PIT Loft. Description here...
+
+This is optional and should be used sparingly. If nothing stands out in a given day, don't force it. Only star shows where you genuinely think a reader should pay extra attention.
 
 ## Guidelines
 
-- **Lead with the people.** Open each recommendation with the performer, team, or creator name — never with "There's something for everyone" or other vague openers.
-- **Say why it's a pick.** What makes this one worth leaving the house for? The performers, the format, the track record, the uniqueness? Be specific but don't invent details.
-- **Include practical info.** Venue, day, and time should be easy to spot for each pick.
-- **Cover the breadth.** Try to represent different venues, different nights, and different styles (improv, sketch, standup, variety) rather than clustering all picks at one theater.
+- **Lead with the people.** When describing a show, call out the specific performers, team, or creator names where the data includes them. Never open with vague filler like "There's something for everyone."
+- **Lead with practical info.** Each show entry should open with time, venue, and show name so readers can scan quickly.
+- **Say why it's worth seeing.** The performers, the format, the track record, the uniqueness? Be specific but don't invent details.
+- **Cover all venues.** Don't ignore shows from any venue. Readers follow this newsletter because it covers the full NYC comedy scene. If it's a slow week at a venue, one pick from there is fine.
 - **Call out value.** If something is free, cheap, or a jam (good for performers looking for stage time), mention it.
-- **Be honest about what you don't know.** If a show description is thin and you can't tell much about it, skip it rather than guessing.
-- **Don't pad.** If it's a slow week, say so and give fewer picks. Don't inflate mediocre listings.
-- **Format for email.** Use short paragraphs. Bold show titles. Keep it scannable — people read newsletters on their phones.
+- **Be honest about what you don't know.** If a show description is thin and you can't tell much about it, a single sentence is fine. Don't embellish.
+- **Don't pad.** Keep write-ups concise — 1-3 sentences per show. Let the good ones speak for themselves.
+- **Format for email.** Use short paragraphs. Keep it scannable — people read newsletters on their phones.
+- **No greeting or signoff.** Do NOT include "Hey everyone", "See you there", "[Your Name]" or any opening/closing — the greeting and signoff are handled separately outside your output.
+- **Do not invent or embellish details not present in the event data.**
 
-## Events
+## Events by date
 
 {event_block}
 
-Write the body of the newsletter (the part between the greeting and signoff — those are handled separately). Use markdown formatting (bold, line breaks) that will render in an HTML email.
+Write ONLY the chronological newsletter body. No greeting, no signoff. Use markdown formatting.
