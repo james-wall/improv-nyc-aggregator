@@ -23,6 +23,8 @@ from src.scrapers.magnet import MagnetScraper
 from src.scrapers.bcc import BccScraper
 from src.scrapers.ucb import UcbScraper
 from src.scrapers.secondcity import SecondCityScraper
+from src.scrapers.caveat import CaveatScraper
+from src.scrapers.therat import TheRatScraper
 from src.agents.summarizer import summarize_events
 
 SUMMARY_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.txt')
@@ -37,6 +39,8 @@ def scrape_all(future_days: int):
         ("BCC", BccScraper()),
         ("UCB", UcbScraper()),
         ("Second City", SecondCityScraper()),
+        ("Caveat", CaveatScraper()),
+        ("The Rat", TheRatScraper()),
     ]
 
     all_events = []
@@ -140,7 +144,7 @@ def build_newsletter_html(body_md: str, date_range: str) -> str:
   <tr>
     <td style="background-color: #f0f0f5; padding: 20px 40px; text-align: center; font-size: 12px; color: #888888;">
       <p style="margin: 0;">
-        Covering The PIT &middot; Magnet Theater &middot; Brooklyn Comedy Collective &middot; UCB &middot; Second City NY
+        Covering The PIT &middot; Magnet Theater &middot; Brooklyn Comedy Collective &middot; UCB &middot; Second City NY &middot; Caveat &middot; The Rat
       </p>
       <p style="margin: 8px 0 0 0;">
         Got a tip or want to be featured? Reply to this email.
@@ -174,7 +178,7 @@ That's the week. Go see something live — your couch will still be there when y
 — The Improv NYC Digest team
 
 ---
-Covering The PIT · Magnet Theater · Brooklyn Comedy Collective · UCB · Second City NY
+Covering The PIT · Magnet Theater · Brooklyn Comedy Collective · UCB · Second City NY · Caveat · The Rat
 Got a tip or want to be featured? Reply to this email.
 """
 
