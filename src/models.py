@@ -12,3 +12,4 @@ class Event:
     source: str
     time_known: bool = True
     is_class_show: bool = False
+    show_format: str | None = None  # "class_show", "jam", "open_mic", or None

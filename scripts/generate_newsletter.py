@@ -56,11 +56,15 @@ def scrape_all(future_days: int):
     # Sort by start time (None-times go last)
     all_events.sort(key=lambda e: e.start_time or datetime.max)
 
-    # Filter out class shows for the newsletter (they're still in the DB)
-    class_count = sum(1 for e in all_events if e.is_class_show)
-    newsletter_events = [e for e in all_events if not e.is_class_show]
-    if class_count:
-        print(f"  📚 Filtered out {class_count} class/student shows")
+    # Filter out non-main-show formats (they're still in the DB for future use)
+    EXCLUDED_FORMATS = {"class_show", "jam", "open_mic"}
+    filtered = [e for e in all_events if e.show_format in EXCLUDED_FORMATS]
+    newsletter_events = [e for e in all_events if e.show_format not in EXCLUDED_FORMATS]
+    if filtered:
+        from collections import Counter
+        fmt_counts = Counter(e.show_format for e in filtered)
+        parts = [f"{count} {fmt}" for fmt, count in sorted(fmt_counts.items())]
+        print(f"  📚 Filtered out: {', '.join(parts)}")
 
     return newsletter_events
 

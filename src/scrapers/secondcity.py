@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import time
 from src.models import Event
 from src.store import db as store
-from src.utils.formatting import is_class_show as is_class_show_by_title
+from src.utils.formatting import detect_show_format
 
 
 class SecondCityScraper:
@@ -168,7 +168,10 @@ class SecondCityScraper:
                 venue = self._extract_venue(show_attrs)
                 # Use API showType or fall back to title-based detection
                 show_type = show_attrs.get("showType", "")
-                class_show = show_type == "student" or is_class_show_by_title(title)
+                show_fmt = detect_show_format(title)
+                if show_type == "student":
+                    show_fmt = "class_show"
+                class_show = show_fmt == "class_show"
 
                 # Try to get exact instances from patronticketData
                 patron_data = show.get("patronticketData", {}) or {}
@@ -210,6 +213,7 @@ class SecondCityScraper:
                             source="secondcity",
                             description=description or None,
                             is_class_show=class_show,
+                            show_format=show_fmt,
                         )
                         store.upsert_occurrence(show_id, start_dt.isoformat())
 
@@ -221,6 +225,7 @@ class SecondCityScraper:
                             url=show_url,
                             source="secondcity",
                             is_class_show=class_show,
+                            show_format=show_fmt,
                         ))
                 else:
                     # Fall back to the dates field (YYYYMMDD strings, no time)
@@ -241,6 +246,7 @@ class SecondCityScraper:
                             source="secondcity",
                             description=description or None,
                             is_class_show=class_show,
+                            show_format=show_fmt,
                         )
                         store.upsert_occurrence(show_id, event_date.isoformat())
 
@@ -252,6 +258,7 @@ class SecondCityScraper:
                             url=show_url,
                             source="secondcity",
                             is_class_show=class_show,
+                            show_format=show_fmt,
                         ))
 
         except Exception as e:

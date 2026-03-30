@@ -33,6 +33,7 @@ PROMPT_REGISTRY = {
 def format_events_for_prompt(events: List[Event]) -> str:
     """Format events grouped by date, sorted chronologically within each day."""
     from collections import defaultdict
+    from src.utils.formatting import normalize_title
 
     by_date = defaultdict(list)
     for e in events:
@@ -49,10 +50,11 @@ def format_events_for_prompt(events: List[Event]) -> str:
         day_events = sorted(by_date[date_key], key=lambda e: (not e.time_known, e.start_time))
         lines = [f"### {date_key}"]
         for e in day_events:
+            title = normalize_title(e.title)
             if e.time_known:
-                line = f'- [{e.start_time.strftime("%I:%M %p")}] "{e.title}" at {e.venue}'
+                line = f'- [{e.start_time.strftime("%I:%M %p")}] "{title}" at {e.venue}'
             else:
-                line = f'- "{e.title}" at {e.venue} — check venue for showtime'
+                line = f'- "{title}" at {e.venue} — check venue for showtime'
             if e.description:
                 line += f'\n  Description: {e.description.strip()}'
             if e.url:

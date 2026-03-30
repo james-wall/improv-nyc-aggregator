@@ -10,7 +10,7 @@ import time
 import xml.etree.ElementTree as ET
 from src.models import Event
 from src.store import db as store
-from src.utils.formatting import is_class_show
+from src.utils.formatting import detect_show_format
 
 
 class TheRatScraper:
@@ -158,7 +158,8 @@ class TheRatScraper:
                     else:
                         continue
 
-                    class_show = is_class_show(title)
+                    show_fmt = detect_show_format(title)
+                    class_show = show_fmt == "class_show"
                     events.append(Event(
                         title=title,
                         venue=cached.get("venue", self.VENUE_NAME),
@@ -168,6 +169,7 @@ class TheRatScraper:
                         source="therat",
                         time_known=True,
                         is_class_show=class_show,
+                    show_format=show_fmt,
                     ))
                     continue
 
@@ -199,7 +201,8 @@ class TheRatScraper:
                     continue
 
                 # Persist to knowledge store
-                class_show = is_class_show(title)
+                show_fmt = detect_show_format(title)
+                class_show = show_fmt == "class_show"
                 show_id = store.upsert_show(
                     url=url,
                     title=title,
@@ -207,6 +210,7 @@ class TheRatScraper:
                     source="therat",
                     description=description or None,
                     is_class_show=class_show,
+                    show_format=show_fmt,
                 )
                 store.upsert_occurrence(show_id, start_dt.isoformat())
 
@@ -219,6 +223,7 @@ class TheRatScraper:
                     source="therat",
                     time_known=has_time,
                     is_class_show=class_show,
+                    show_format=show_fmt,
                 ))
 
                 time.sleep(random.uniform(1.0, 2.5))

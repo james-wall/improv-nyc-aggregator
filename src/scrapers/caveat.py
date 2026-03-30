@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import time
 from src.models import Event
 from src.store import db as store
-from src.utils.formatting import is_class_show
+from src.utils.formatting import detect_show_format
 
 
 class CaveatScraper:
@@ -129,7 +129,8 @@ class CaveatScraper:
                         description = f"{summary}\nPrice: {price_note}" if summary else f"Price: {price_note}"
 
                 # Persist to knowledge store
-                class_show = is_class_show(title)
+                show_fmt = detect_show_format(title)
+                class_show = show_fmt == "class_show"
                 show_id = store.upsert_show(
                     url=event_url,
                     title=title,
@@ -137,6 +138,7 @@ class CaveatScraper:
                     source="caveat",
                     description=description or None,
                     is_class_show=class_show,
+                    show_format=show_fmt,
                 )
                 store.upsert_occurrence(show_id, start_dt.isoformat())
 
@@ -148,6 +150,7 @@ class CaveatScraper:
                     url=event_url,
                     source="caveat",
                     is_class_show=class_show,
+                    show_format=show_fmt,
                 ))
 
         except Exception as e:

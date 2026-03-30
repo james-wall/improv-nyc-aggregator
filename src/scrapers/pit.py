@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 import time
 from src.models import Event
 from src.store import db as store
-from src.utils.formatting import is_class_show
+from src.utils.formatting import detect_show_format
 
 class PitScraper:
     BASE_URL = "https://thepit-nyc.com/calendar/"
@@ -160,7 +160,8 @@ class PitScraper:
                             time.sleep(random.uniform(1.5, 3.5))
 
                         # Persist to knowledge store
-                        class_show = is_class_show(title)
+                        show_fmt = detect_show_format(title)
+                        class_show = show_fmt == "class_show"
                         show_id = store.upsert_show(
                             url=event_url,
                             title=title,
@@ -168,6 +169,7 @@ class PitScraper:
                             source="pit",
                             description=description or None,
                             is_class_show=class_show,
+                            show_format=show_fmt,
                         )
                         if full_dt:
                             store.upsert_occurrence(show_id, full_dt.isoformat())
@@ -180,6 +182,7 @@ class PitScraper:
                             url=event_url,
                             source="pit",
                             is_class_show=class_show,
+                            show_format=show_fmt,
                         ))
 
             except Exception as e:
