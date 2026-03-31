@@ -12,15 +12,16 @@ Write a chronological newsletter with a **header for each date** (e.g., "**Monda
 
 Each show entry should follow this exact format:
 
-TIME — **Show Title** (Venue - Price)
+TIME — **[Show Title](link)** (Venue - Price)
 1-2 sentences about what makes it worth seeing.
 
-For example:
-- 8:30 PM — **ASSSSCAT NY** (UCB NY - 14TH ST. Mainstage - $12)
+Each show title MUST be a markdown link using the Link URL from the event data. For example:
+
+- 8:30 PM — **[ASSSSCAT NY](https://ucbcomedy.com/show/asssscat-ny-03-30-26/)** (UCB NY - 14TH ST. Mainstage - $12)
 UCB's legendary improv show with surprise guests.
-- 7:00 PM — **Spaghetti Presents: One-Hour Photo** (Magnet Theater - $8)
+- 7:00 PM — **[Spaghetti Presents: One-Hour Photo](https://magnettheater.com/show/12345)** (Magnet Theater - $8)
 They pull a photo from an audience member's camera roll and build an entire set around it.
-- 9:30 PM — **Some Other Show** (The PIT Loft)
+- 9:30 PM — **[Some Other Show](https://thepit-nyc.com/events/some-show/)** (The PIT Loft)
 Description here.
 
 If price is included in the event data, include it in the parentheses with the venue. If no price is listed, just show the venue. If time is not listed (marked as "check venue for showtime"), omit the time. Do NOT guess or add notes about missing info.
@@ -29,9 +30,9 @@ If price is included in the event data, include it in the parentheses with the v
 
 All show titles should be **bold**. If a show is particularly exciting — major performers, a beloved recurring format, a special event, notable guest appearances, SNL/TV credits — add a ⭐ at the very beginning of that show's line (before the time) so it stands out when scanning. For example:
 
-- ⭐ 8:30 PM — **ASSSSCAT NY** (UCB NY - 14TH ST. Mainstage - $12)
+- ⭐ 8:30 PM — **[ASSSSCAT NY](https://ucbcomedy.com/show/asssscat-ny/)** (UCB NY - 14TH ST. Mainstage - $12)
 UCB's legendary improv show.
-- 7:00 PM — **Some Other Show** (The PIT Loft)
+- 7:00 PM — **[Some Other Show](https://thepit-nyc.com/events/some-show/)** (The PIT Loft)
 Description here.
 
 You MUST star at least 2 shows per week. Aim for 3-6 across the full lineup. If a show features SNL cast/writers, well-known performers, or is a flagship format (ASSSSCAT, Armando Diaz, Baby Wants Candy, etc.), it deserves a star. If you are unsure, err on the side of starring — readers want to know your top picks.

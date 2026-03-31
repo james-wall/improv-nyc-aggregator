@@ -70,8 +70,10 @@ def scrape_all(future_days: int):
 
 
 def markdown_to_html(md: str) -> str:
-    """Minimal markdown-to-HTML for newsletter body (bold, line breaks)."""
+    """Minimal markdown-to-HTML for newsletter body (bold, links, line breaks)."""
     html = md
+    # Links: [text](url) -> <a href="url">text</a>
+    html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" style="color: #2a5db0; text-decoration: underline;">\1</a>', html)
     # Bold: **text** -> <strong>text</strong>
     html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
     # Convert double newlines to paragraph breaks
