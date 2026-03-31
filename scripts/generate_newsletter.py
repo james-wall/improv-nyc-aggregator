@@ -73,7 +73,7 @@ def markdown_to_html(md: str) -> str:
     """Minimal markdown-to-HTML for newsletter body (bold, links, line breaks)."""
     html = md
     # Links: [text](url) -> <a href="url">text</a>
-    html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" style="color: #2a5db0; text-decoration: underline;">\1</a>', html)
+    html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" style="color: #FF6B6B; text-decoration: underline;">\1</a>', html)
     # Bold: **text** -> <strong>text</strong>
     html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
     # Convert double newlines to paragraph breaks
@@ -98,18 +98,21 @@ def build_newsletter_html(body_md: str, date_range: str) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>This Week in NYC Improv</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: Georgia, 'Times New Roman', serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px 0;">
+<body style="margin: 0; padding: 0; background-color: #1a1117; font-family: 'Trebuchet MS', 'Lucida Grande', Verdana, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a1117; padding: 20px 0;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color: #1e1e2a; border-radius: 8px; overflow: hidden;">
 
   <!-- Header -->
   <tr>
-    <td style="background-color: #1a1a2e; color: #ffffff; padding: 32px 40px; text-align: center;">
-      <h1 style="margin: 0; font-size: 28px; font-weight: normal; letter-spacing: 1px;">
+    <td style="background-color: #8B0000; color: #FFD700; padding: 32px 40px; text-align: center; border-bottom: 4px solid #FFD700;">
+      <p style="margin: 0 0 6px 0; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: #ffecb3;">
+        &#9733; NOW SHOWING &#9733;
+      </p>
+      <h1 style="margin: 0; font-size: 26px; font-weight: bold; letter-spacing: 3px; text-transform: uppercase;">
         This Week in NYC Improv
       </h1>
-      <p style="margin: 8px 0 0 0; font-size: 14px; color: #b0b0cc;">
+      <p style="margin: 10px 0 0 0; font-size: 14px; color: #ffecb3;">
         {date_range}
       </p>
     </td>
@@ -118,10 +121,10 @@ def build_newsletter_html(body_md: str, date_range: str) -> str:
   <!-- Greeting -->
   <tr>
     <td style="padding: 32px 40px 0 40px;">
-      <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.6; color: #333333;">
+      <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.6; color: #e8e0d4;">
         Hey there,
       </p>
-      <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #333333;">
+      <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #e8e0d4;">
         Here's what caught our eye on NYC comedy stages this week. As always, we're not trying to list everything &mdash; just the stuff we'd actually tell a friend about.
       </p>
     </td>
@@ -129,30 +132,30 @@ def build_newsletter_html(body_md: str, date_range: str) -> str:
 
   <!-- Body (generated) -->
   <tr>
-    <td style="padding: 0 40px; font-size: 16px; line-height: 1.6; color: #333333;">
+    <td style="padding: 0 40px; font-size: 16px; line-height: 1.6; color: #e8e0d4;">
       {body_html}
     </td>
   </tr>
 
   <!-- Signoff -->
   <tr>
-    <td style="padding: 24px 40px 16px 40px;">
-      <p style="margin: 0 0 8px 0; font-size: 16px; line-height: 1.6; color: #333333;">
+    <td style="padding: 24px 40px 16px 40px; border-top: 1px dashed #333344;">
+      <p style="margin: 0 0 8px 0; font-size: 16px; line-height: 1.6; color: #e8e0d4;">
         That's the week. Go see something live &mdash; your couch will still be there when you get back.
       </p>
-      <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #333333;">
-        &mdash; The Improv NYC Digest team
+      <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #FFD700;">
+        &mdash; The Improv NYC Digest crew &#127908;
       </p>
     </td>
   </tr>
 
   <!-- Footer -->
   <tr>
-    <td style="background-color: #f0f0f5; padding: 20px 40px; text-align: center; font-size: 12px; color: #888888;">
-      <p style="margin: 0;">
-        Covering The PIT &middot; Magnet Theater &middot; Brooklyn Comedy Collective &middot; UCB &middot; Second City NY &middot; Caveat &middot; The Rat
+    <td style="background-color: #8B0000; padding: 20px 40px; text-align: center; font-size: 12px; color: #ffecb3; border-top: 3px solid #FFD700;">
+      <p style="margin: 0; letter-spacing: 1px;">
+        &#127902; THE PIT &middot; MAGNET &middot; BCC &middot; UCB &middot; SECOND CITY &middot; CAVEAT &middot; THE RAT &#127902;
       </p>
-      <p style="margin: 8px 0 0 0;">
+      <p style="margin: 10px 0 0 0; color: #ffcc80;">
         Got a tip or want to be featured? Reply to this email.
       </p>
     </td>
