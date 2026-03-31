@@ -20,7 +20,7 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 #     location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
 # )
 
-MODEL_NAME = "gemini-2.5-flash-lite"
+MODEL_NAME = "gemini-2.5-flash"
 
 PROMPT_REGISTRY = {
     "default": "src/prompts/summarizer_prompt.txt",
