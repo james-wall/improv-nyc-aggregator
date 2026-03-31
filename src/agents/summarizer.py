@@ -51,10 +51,11 @@ def format_events_for_prompt(events: List[Event]) -> str:
         lines = [f"### {date_key}"]
         for e in day_events:
             title = normalize_title(e.title)
+            venue_price = f'{e.venue} - {e.price}' if e.price else e.venue
             if e.time_known:
-                line = f'- [{e.start_time.strftime("%I:%M %p")}] "{title}" at {e.venue}'
+                line = f'- [{e.start_time.strftime("%I:%M %p")}] "{title}" ({venue_price})'
             else:
-                line = f'- "{title}" at {e.venue} — check venue for showtime'
+                line = f'- "{title}" ({venue_price}) — check venue for showtime'
             if e.description:
                 line += f'\n  Description: {e.description.strip()}'
             if e.url:

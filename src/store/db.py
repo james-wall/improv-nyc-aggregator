@@ -21,6 +21,7 @@ def init_db():
                 description    TEXT,
                 is_class_show  INTEGER NOT NULL DEFAULT 0,
                 show_format    TEXT,
+                price          TEXT,
                 run_start      TEXT,
                 run_end        TEXT,
                 first_seen     TEXT NOT NULL,
@@ -38,6 +39,7 @@ def init_db():
         for stmt in [
             "ALTER TABLE shows ADD COLUMN is_class_show INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE shows ADD COLUMN show_format TEXT",
+            "ALTER TABLE shows ADD COLUMN price TEXT",
         ]:
             try:
                 conn.execute(stmt)
@@ -71,6 +73,7 @@ def upsert_show(
     category: str = None,
     is_class_show: bool = False,
     show_format: str = None,
+    price: str = None,
     run_start: str = None,
     run_end: str = None,
 ) -> int:
@@ -96,22 +99,23 @@ def upsert_show(
                     category       = COALESCE(?, category),
                     is_class_show  = ?,
                     show_format    = COALESCE(?, show_format),
+                    price          = COALESCE(?, price),
                     run_start      = COALESCE(?, run_start),
                     run_end        = COALESCE(?, run_end),
                     last_seen      = ?
                 WHERE url = ?
                 """,
-                (title, venue, source, description, category, int(is_class_show), show_format, run_start, run_end, now, url),
+                (title, venue, source, description, category, int(is_class_show), show_format, price, run_start, run_end, now, url),
             )
             return existing["id"]
         else:
             cur = conn.execute(
                 """
                 INSERT INTO shows
-                    (url, title, venue, source, description, category, is_class_show, show_format, run_start, run_end, first_seen, last_seen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (url, title, venue, source, description, category, is_class_show, show_format, price, run_start, run_end, first_seen, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (url, title, venue, source, description, category, int(is_class_show), show_format, run_start, run_end, now, now),
+                (url, title, venue, source, description, category, int(is_class_show), show_format, price, run_start, run_end, now, now),
             )
             return cur.lastrowid
 

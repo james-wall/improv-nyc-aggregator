@@ -299,6 +299,7 @@ class MagnetScraper:
                             description=description or None,
                             is_class_show=class_show,
                             show_format=show_fmt,
+                            price=price_str or None,
                         )
                         if full_dt:
                             store.upsert_occurrence(show_id, full_dt.isoformat())
@@ -312,7 +313,8 @@ class MagnetScraper:
                                 url=event_url,
                                 source="magnet",
                                 is_class_show=class_show,
-                            show_format=show_fmt,
+                                show_format=show_fmt,
+                                price=price_str or None,
                             )
                         )
 

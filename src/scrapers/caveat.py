@@ -122,11 +122,7 @@ class CaveatScraper:
                     description = cached["description"]
                     print(f"  ✓ Cached: {title}")
                 else:
-                    # Build description from available metadata
-                    summary = item.get("summary", "")
-                    description = summary
-                    if price_note:
-                        description = f"{summary}\nPrice: {price_note}" if summary else f"Price: {price_note}"
+                    description = item.get("summary", "")
 
                 # Persist to knowledge store
                 show_fmt = detect_show_format(title)
@@ -139,6 +135,7 @@ class CaveatScraper:
                     description=description or None,
                     is_class_show=class_show,
                     show_format=show_fmt,
+                    price=price_note or None,
                 )
                 store.upsert_occurrence(show_id, start_dt.isoformat())
 
@@ -151,6 +148,7 @@ class CaveatScraper:
                     source="caveat",
                     is_class_show=class_show,
                     show_format=show_fmt,
+                    price=price_note or None,
                 ))
 
         except Exception as e:
