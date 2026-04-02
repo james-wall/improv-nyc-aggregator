@@ -231,17 +231,17 @@ def main(future_days: int = 7, send: bool = False):
 
     # 5. Optionally send
     if send:
-        to = os.getenv("TEST_EMAIL")
+        to = os.getenv("NEWSLETTER_RECIPIENT")
         if not to:
-            print("⚠️  TEST_EMAIL not set in .env — skipping email send.")
+            print("⚠️  NEWSLETTER_RECIPIENT not set — skipping email send.")
             return
         try:
-            from src.emailer.gmail_sender import send_email
+            from src.emailer.smtp_sender import send_email
             subject = f"This Week in NYC Improv 🎭 ({date_range})"
             send_email(to=to, subject=subject, body=plaintext, html=html)
         except Exception as e:
             print(f"❌ Email send failed: {e}")
-            print("   Make sure credentials.json is present and Gmail OAuth is set up.")
+            print("   Make sure GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set.")
 
 
 if __name__ == "__main__":
