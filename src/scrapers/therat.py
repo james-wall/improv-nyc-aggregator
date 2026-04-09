@@ -134,6 +134,9 @@ class TheRatScraper:
 
             print(f"  {len(candidate_urls)} URLs match date range")
 
+            consecutive_failures = 0
+            MAX_CONSECUTIVE_FAILURES = 5
+            aborted = False
             for url in candidate_urls:
                 # Check cache first
                 cached = store.get_show(url)
@@ -173,10 +176,21 @@ class TheRatScraper:
                     ))
                     continue
 
+                if aborted:
+                    continue
+
                 # Fetch the page for JSON-LD
                 data = self._fetch_event_jsonld(url)
                 if not data:
+                    consecutive_failures += 1
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        print(
+                            f"  🛑 {MAX_CONSECUTIVE_FAILURES} consecutive Rat fetch failures "
+                            "— likely network issue or rate limit. Skipping the rest of this run."
+                        )
+                        aborted = True
                     continue
+                consecutive_failures = 0
 
                 title = data.get("name", "Untitled")
                 # Clean emoji from title for consistency

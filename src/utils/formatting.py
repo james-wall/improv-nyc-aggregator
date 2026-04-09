@@ -105,9 +105,30 @@ _TITLE_SMALL_WORDS = {
 }
 
 
+def sanitize_text(text: str) -> str:
+    """Strip control chars, normalize unicode, and remove characters that
+    break downstream markdown/HTML rendering (notably square brackets, which
+    confuse the markdown link parser when they appear in show titles like
+    "what makes [you] laugh?").
+    """
+    if not text:
+        return text
+    # Normalize unicode (combine accents, etc.)
+    text = unicodedata.normalize("NFKC", text)
+    # Strip ASCII control characters
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    # Replace square brackets with parentheses to keep meaning intact while
+    # not breaking [text](url) markdown link syntax later in the pipeline.
+    text = text.replace("[", "(").replace("]", ")")
+    # Collapse whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def normalize_title(title: str) -> str:
     """Normalize a show title for consistent display.
 
+    - Sanitizes (strips control chars, escapes brackets)
     - Strips emoji
     - Converts ALL CAPS to title case (preserves mixed-case titles)
     - Cleans up extra whitespace and dashes
@@ -115,6 +136,8 @@ def normalize_title(title: str) -> str:
     """
     if not title:
         return title
+
+    title = sanitize_text(title)
 
     # Strip emoji
     text = _EMOJI_RE.sub(' ', title)

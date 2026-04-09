@@ -90,6 +90,10 @@ class PitScraper:
             print(f"  ⚠️ Error fetching description for {url}: {e}")
         return ""
 
+    # Show formats we never include in the newsletter — skip description
+    # fetch for these to keep request counts manageable.
+    SKIP_DESCRIPTION_FORMATS = {"class_show", "jam", "open_mic"}
+
     def fetch(self, future_days: int = 3) -> list[Event]:
         """Return events occurring within the next `future_days` days (from now).
 
@@ -99,6 +103,9 @@ class PitScraper:
         """
         events = []
         month_params = self._get_month_params_for_range(future_days)
+        consecutive_failures = 0
+        MAX_CONSECUTIVE_FAILURES = 5
+        aborted = False
 
         for month_param in month_params:
             url = self.BASE_URL + month_param
@@ -149,19 +156,35 @@ class PitScraper:
                         except Exception:
                             full_dt = event_date
 
-                        # Use cached description if available; only hit the
-                        # network when we haven't seen this show before.
+                        # Detect format BEFORE fetching the description so we
+                        # can skip the network call for shows we'll never put
+                        # in the newsletter (class shows, jams, open mics).
+                        show_fmt = detect_show_format(title)
+                        class_show = show_fmt == "class_show"
+
                         cached = store.get_show(event_url)
                         if cached and cached["description"]:
                             description = cached["description"]
                             print(f"  ✓ Cached: {title}")
+                        elif show_fmt in self.SKIP_DESCRIPTION_FORMATS:
+                            description = ""
+                        elif aborted:
+                            # Already gave up on description fetches this run
+                            description = ""
                         else:
                             description = self.fetch_event_description(event_url)
+                            if description:
+                                consecutive_failures = 0
+                            else:
+                                consecutive_failures += 1
+                                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                                    print(
+                                        f"  🛑 {MAX_CONSECUTIVE_FAILURES} consecutive description "
+                                        "fetch failures — likely rate-limited. Skipping remaining "
+                                        "PIT description fetches for this run."
+                                    )
+                                    aborted = True
                             time.sleep(random.uniform(1.5, 3.5))
-
-                        # Persist to knowledge store
-                        show_fmt = detect_show_format(title)
-                        class_show = show_fmt == "class_show"
                         show_id = store.upsert_show(
                             url=event_url,
                             title=title,

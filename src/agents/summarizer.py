@@ -1,11 +1,34 @@
+import json
 import os
+import re
 from datetime import datetime
 from typing import List
 
 from dotenv import load_dotenv
 from google import genai
+from pydantic import BaseModel
 
 from src.models import Event
+
+
+class CuratedShow(BaseModel):
+    time: str
+    venue: str
+    title: str
+    url: str
+    starred: bool
+    details: str
+
+
+class CuratedDay(BaseModel):
+    date_iso: str
+    label: str
+    emoji: str
+    shows: List[CuratedShow]
+
+
+class CuratedNewsletter(BaseModel):
+    days: List[CuratedDay]
 
 load_dotenv()
 
@@ -27,6 +50,7 @@ PROMPT_REGISTRY = {
     "humorous": "src/prompts/summarizer_humorous.txt",
     "editorial": "src/prompts/summarizer_editorial.txt",
     "newsletter": "src/prompts/newsletter_prompt.txt",
+    "newsletter_json": "src/prompts/newsletter_json_prompt.txt",
 }
 
 
@@ -109,6 +133,69 @@ def summarize_events(events: List[Event], style: str = "default",
     except Exception as e:
         print(f"Error generating summary: {e}")
         return "[Error generating summary]"
+
+
+def curate_events_json(events: List[Event], days: int, date_range: str) -> dict:
+    """Ask the LLM to curate events into a structured per-day JSON object.
+
+    Returns a dict with key "days" — see newsletter_json_prompt.txt for schema.
+    On parse failure, returns {"days": []} so the caller can degrade gracefully.
+    """
+    if not events:
+        return {"days": []}
+
+    event_block = format_events_for_prompt(events)
+    venues = sorted({e.venue for e in events})
+    prompt = build_prompt(
+        event_block, style="newsletter_json", days=days, date_range=date_range,
+        event_count=len(events), venue_count=len(venues),
+        venue_list=", ".join(venues),
+    )
+
+    import time as _time
+    raw = ""
+    parsed_obj: CuratedNewsletter | None = None
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": CuratedNewsletter,
+                    "max_output_tokens": 32768,
+                },
+            )
+            # The SDK exposes the parsed pydantic object directly when a
+            # response_schema is provided.
+            parsed_obj = getattr(response, "parsed", None)
+            raw = response.text or ""
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            wait = 2 ** attempt + 1  # 2s, 3s, 5s
+            print(f"⚠️  Gemini call failed (attempt {attempt + 1}/3): {e}. Retrying in {wait}s...")
+            _time.sleep(wait)
+    if last_err is not None:
+        print(f"❌ Gemini call failed after 3 attempts: {last_err}")
+        return {"days": []}
+
+    if parsed_obj is not None:
+        return parsed_obj.model_dump()
+
+    # Strip code fences if the model wraps the JSON
+    raw = raw.strip()
+    fenced = re.match(r"^```(?:json)?\s*(.*?)\s*```$", raw, re.DOTALL)
+    if fenced:
+        raw = fenced.group(1)
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"⚠️  Could not parse curated JSON ({e}). Raw output:\n{raw[:500]}")
+        return {"days": []}
 
 
 if __name__ == "__main__":
