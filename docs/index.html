@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Scene — Your weekly guide to live improv &amp; sketch in NYC</title>
+  <meta name="description" content="A curated weekly newsletter covering the best improv, sketch, and live comedy across New York City.">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #1a1117;
+      color: #e8e0e4;
+      font-family: 'Trebuchet MS', 'Lucida Grande', Verdana, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .hero {
+      width: 100%;
+      background-color: #8B0000;
+      border-bottom: 4px solid #FFD700;
+      text-align: center;
+      padding: 60px 24px 48px;
+    }
+
+    .hero h1 {
+      color: #FFD700;
+      font-size: 3rem;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+    }
+
+    .hero .tagline {
+      color: #ffecb3;
+      font-size: 1.15rem;
+      font-weight: normal;
+      margin-top: 4px;
+    }
+
+    .hero .city {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 4px 14px;
+      border: 1px solid #FFD700;
+      border-radius: 20px;
+      color: #FFD700;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .content {
+      max-width: 620px;
+      width: 100%;
+      padding: 48px 24px;
+      text-align: center;
+    }
+
+    .content h2 {
+      color: #FFD700;
+      font-size: 1.5rem;
+      margin-bottom: 16px;
+    }
+
+    .content p {
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: #d4ccd0;
+      margin-bottom: 24px;
+    }
+
+    .signup-section {
+      background-color: #1e1e2a;
+      border-radius: 8px;
+      padding: 36px 28px;
+      margin: 12px 0 40px;
+    }
+
+    .signup-section h3 {
+      color: #FFD700;
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+
+    .signup-section p {
+      font-size: 0.95rem;
+      color: #b8b0b4;
+      margin-bottom: 20px;
+    }
+
+    /* Buttondown embed form styling */
+    .signup-section form {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .signup-section input[type="email"] {
+      padding: 12px 16px;
+      border: 2px solid #FFD700;
+      border-radius: 6px;
+      background-color: #1a1117;
+      color: #FFD700;
+      font-size: 1rem;
+      font-family: inherit;
+      width: 260px;
+      outline: none;
+    }
+
+    .signup-section input[type="email"]::placeholder {
+      color: #8a7a6e;
+    }
+
+    .signup-section input[type="email"]:focus {
+      border-color: #fff;
+      box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.25);
+    }
+
+    .signup-section input[type="submit"] {
+      padding: 12px 28px;
+      background-color: #8B0000;
+      color: #FFD700;
+      border: 2px solid #FFD700;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background-color 0.2s;
+    }
+
+    .signup-section input[type="submit"]:hover {
+      background-color: #a00000;
+    }
+
+    .archive-link {
+      display: inline-block;
+      margin-top: 12px;
+      color: #FFD700;
+      text-decoration: none;
+      font-size: 0.9rem;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .archive-link:hover {
+      border-bottom-color: #FFD700;
+    }
+
+    .about {
+      max-width: 620px;
+      width: 100%;
+      padding: 0 24px 48px;
+      text-align: center;
+    }
+
+    .venues {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+
+    .venues span {
+      display: inline-block;
+      padding: 4px 12px;
+      background-color: #1e1e2a;
+      border-radius: 16px;
+      font-size: 0.85rem;
+      color: #d4ccd0;
+    }
+
+    .socials {
+      padding: 32px 24px;
+      text-align: center;
+    }
+
+    .socials a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #FFD700;
+      text-decoration: none;
+      font-size: 1rem;
+      padding: 10px 20px;
+      border: 1px solid #FFD700;
+      border-radius: 24px;
+      transition: background-color 0.2s;
+    }
+
+    .socials a:hover {
+      background-color: rgba(255, 215, 0, 0.1);
+    }
+
+    .socials a svg {
+      width: 20px;
+      height: 20px;
+      fill: #FFD700;
+    }
+
+    footer {
+      width: 100%;
+      background-color: #8B0000;
+      border-top: 3px solid #FFD700;
+      text-align: center;
+      padding: 20px 24px;
+      color: #ffecb3;
+      font-size: 0.8rem;
+      margin-top: auto;
+    }
+
+    @media (max-width: 480px) {
+      .hero h1 { font-size: 2.2rem; }
+      .signup-section input[type="email"] { width: 100%; }
+      .signup-section input[type="submit"] { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="hero">
+    <h1>Our Scene</h1>
+    <p class="tagline">Your weekly guide to the best live improv &amp; sketch</p>
+    <span class="city">New York City</span>
+  </header>
+
+  <main class="content">
+    <h2>Every Sunday, straight to your inbox</h2>
+    <p>
+      We watch the calendars at seven venues across NYC so you don't have to.
+      Each week, our curated newsletter picks the shows worth seeing &mdash;
+      from beloved house teams to one-night-only specials.
+    </p>
+
+    <div class="signup-section">
+      <h3>Get the newsletter</h3>
+      <p>Free, weekly, no spam. Unsubscribe anytime.</p>
+
+      <!-- Buttondown signup form — replace YOUR_BUTTONDOWN_USERNAME below -->
+      <form
+        action="https://buttondown.com/api/emails/embed-subscribe/YOUR_BUTTONDOWN_USERNAME"
+        method="post"
+        target="popupwindow"
+      >
+        <input type="email" name="email" placeholder="you@example.com" required />
+        <input type="submit" value="Subscribe" />
+      </form>
+
+      <a class="archive-link" href="https://buttondown.com/YOUR_BUTTONDOWN_USERNAME/archive/" target="_blank">
+        Browse past issues &rarr;
+      </a>
+    </div>
+
+    <h2>What we cover</h2>
+    <p>
+      Improv, sketch, variety, and more &mdash; curated from venues across the city.
+      The best shows worth seeing each week, all in one place.
+    </p>
+    <p style="font-size: 0.9rem; color: #b8b0b4; margin-bottom: 12px;">Venues we follow</p>
+    <div class="venues">
+      <span>The PIT</span>
+      <span>Magnet Theater</span>
+      <span>UCB</span>
+      <span>Brooklyn Comedy Collective</span>
+      <span>Second City</span>
+      <span>Caveat</span>
+      <span>The Rat</span>
+    </div>
+  </main>
+
+  <div class="socials">
+    <a href="https://instagram.com/ourscenenyc" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2Zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5A4.25 4.25 0 0 0 16.25 3.5Zm4.25 3.25a5.25 5.25 0 1 1 0 10.5 5.25 5.25 0 0 1 0-10.5Zm0 1.5a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Zm5.5-1.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/>
+      </svg>
+      @ourscenenyc
+    </a>
+  </div>
+
+  <footer>
+    &copy; 2026 Our Scene &middot; Built with love for the NYC performing arts community
+  </footer>
+
+</body>
+</html>

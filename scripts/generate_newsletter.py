@@ -228,6 +228,7 @@ def build_newsletter_html(curated: dict, date_range: str) -> str:
   <!-- Footer -->
   <tr>
     <td style="background-color: #8B0000; padding: 20px 40px; text-align: center; font-size: 12px; color: #ffecb3; border-top: 3px solid #FFD700;">
+      <p style="margin: 0; font-size: 11px; color: #ffcc80; margin-bottom: 6px;">Venues we follow</p>
       <p style="margin: 0; letter-spacing: 1px;">
         &#127902; THE PIT &middot; MAGNET &middot; BCC &middot; UCB &middot; SECOND CITY &middot; CAVEAT &middot; THE RAT &#127902;
       </p>
@@ -289,7 +290,7 @@ def build_plaintext_newsletter(curated: dict, date_range: str) -> str:
     lines.append("— The NYC Improv & Sketch Digest crew")
     lines.append("")
     lines.append("---")
-    lines.append("Covering The PIT · Magnet · BCC · UCB · Second City NY · Caveat · The Rat")
+    lines.append("Venues we follow: The PIT · Magnet · BCC · UCB · Second City NY · Caveat · The Rat")
     lines.append("Got a tip or want to be featured? Reply to this email.")
     return "\n".join(lines)
 
