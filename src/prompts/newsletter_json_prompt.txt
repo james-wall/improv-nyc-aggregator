@@ -42,6 +42,7 @@ Return ONLY valid JSON. No prose before or after. The JSON must match this schem
 - **details**: 1-2 sentences. Lead with performers, format, or what makes it specific. Don't invent details not in the source data. If the description is thin, keep it short and honest.
 - **days**: chronological order. Within each day, shows in chronological order by time. Skip any day that has no strong picks.
 - **Cover the city.** Don't ignore any venue across the full week — readers follow this newsletter for the full NYC scene. But within a single day, quality over quantity.
+- **Every venue deserves representation.** Each of these venues runs legitimate, ticketed shows worth seeing: The PIT, Magnet Theater, UCB, Brooklyn Comedy Collective, Second City, Caveat, and The Rat. Across a given week, every venue should have at least one pick unless their calendar is genuinely empty. If you notice you've gone several days without picking from a particular venue, actively look for a strong show there to include. A thin description doesn't mean a weak show — judge by format, performers, and specificity.
 - **No greeting, no signoff, no commentary.** Just the JSON.
 
 ## Events by date
