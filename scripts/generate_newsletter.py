@@ -331,17 +331,26 @@ def main(future_days: int = 7, send: bool = False):
 
     # 5. Optionally send
     if send:
-        to = os.getenv("NEWSLETTER_RECIPIENT")
-        if not to:
-            print("⚠️  NEWSLETTER_RECIPIENT not set — skipping email send.")
-            return
-        try:
-            from src.emailer.smtp_sender import send_email
-            subject = f"This Week in NYC Improv & Sketch 🎭 ({date_range})"
-            send_email(to=to, subject=subject, body=plaintext, html=html)
-        except Exception as e:
-            print(f"❌ Email send failed: {e}")
-            print("   Make sure GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set.")
+        subject = f"This Week in NYC Improv & Sketch 🎭 ({date_range})"
+
+        if os.getenv("BUTTONDOWN_API_KEY"):
+            try:
+                from src.emailer.buttondown_sender import send_newsletter
+                send_newsletter(subject=subject, body=plaintext, html=html)
+            except Exception as e:
+                print(f"❌ Buttondown send failed: {e}")
+        else:
+            # Legacy SMTP fallback for local testing
+            to = os.getenv("NEWSLETTER_RECIPIENT")
+            if not to:
+                print("⚠️  NEWSLETTER_RECIPIENT not set — skipping email send.")
+                return
+            try:
+                from src.emailer.smtp_sender import send_email
+                send_email(to=to, subject=subject, body=plaintext, html=html)
+            except Exception as e:
+                print(f"❌ Email send failed: {e}")
+                print("   Make sure GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set.")
 
 
 if __name__ == "__main__":
