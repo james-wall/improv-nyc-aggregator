@@ -176,6 +176,41 @@
       color: #d4ccd0;
     }
 
+    .archive {
+      margin-top: 48px;
+      padding: 36px 28px;
+      background-color: #1e1e2a;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .archive h2 {
+      margin-bottom: 8px;
+    }
+
+    .archive p {
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+      color: #b8b0b4;
+    }
+
+    .archive-button {
+      display: inline-block;
+      padding: 12px 28px;
+      background-color: #8B0000;
+      color: #FFD700;
+      border: 2px solid #FFD700;
+      border-radius: 6px;
+      font-weight: bold;
+      text-decoration: none;
+      letter-spacing: 0.03em;
+      transition: background-color 0.2s;
+    }
+
+    .archive-button:hover {
+      background-color: #a00000;
+    }
+
     .socials {
       padding: 32px 24px;
       text-align: center;
@@ -242,9 +277,9 @@
       <h3>Get the newsletter</h3>
       <p>Free, weekly, no spam. Unsubscribe anytime.</p>
 
-      <!-- Buttondown signup form — replace YOUR_BUTTONDOWN_USERNAME below -->
+      <!-- Buttondown signup form — replace ourscenenyc below -->
       <form
-        action="https://buttondown.com/api/emails/embed-subscribe/YOUR_BUTTONDOWN_USERNAME"
+        action="https://buttondown.com/api/emails/embed-subscribe/ourscenenyc"
         method="post"
         target="popupwindow"
       >
@@ -252,7 +287,7 @@
         <input type="submit" value="Subscribe" />
       </form>
 
-      <a class="archive-link" href="https://buttondown.com/YOUR_BUTTONDOWN_USERNAME/archive/" target="_blank">
+      <a class="archive-link" href="https://buttondown.com/ourscenenyc/archive/" target="_blank">
         Browse past issues &rarr;
       </a>
     </div>
@@ -271,6 +306,16 @@
       <span>Second City</span>
       <span>Caveat</span>
       <span>The Rat</span>
+    </div>
+
+    <div class="archive">
+      <h2>Past issues</h2>
+      <p>
+        Catch up on what was worth seeing in previous weeks.
+      </p>
+      <a class="archive-button" href="https://buttondown.com/ourscenenyc/archive/" target="_blank" rel="noopener">
+        View the archive &rarr;
+      </a>
     </div>
   </main>
 
