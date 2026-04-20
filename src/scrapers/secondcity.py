@@ -5,6 +5,7 @@ import base64
 import json
 import requests
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import time
 from src.models import Event
 from src.store import db as store
@@ -195,7 +196,8 @@ class SecondCityScraper:
                             continue
                         try:
                             start_dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-                            # Convert to naive local time (EST/EDT assumed)
+                            # API returns UTC — convert to NYC local time before dropping tzinfo
+                            start_dt = start_dt.astimezone(ZoneInfo("America/New_York"))
                             start_dt = start_dt.replace(tzinfo=None)
                         except ValueError:
                             continue
