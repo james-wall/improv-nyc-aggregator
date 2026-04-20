@@ -138,6 +138,15 @@
       background-color: #a00000;
     }
 
+    .signup-message {
+      margin-top: 16px;
+      font-size: 0.95rem;
+      min-height: 1.2em;
+    }
+    .signup-message.pending { color: #ffecb3; }
+    .signup-message.success { color: #9fe880; }
+    .signup-message.error   { color: #ff8a8a; }
+
     .archive-link {
       display: inline-block;
       margin-top: 12px;
@@ -277,20 +286,51 @@
       <h3>Get the newsletter</h3>
       <p>Free, weekly, no spam. Unsubscribe anytime.</p>
 
-      <!-- Buttondown signup form — replace ourscenenyc below -->
-      <form
-        action="https://buttondown.com/api/emails/embed-subscribe/ourscenenyc"
-        method="post"
-        target="popupwindow"
-      >
-        <input type="email" name="email" placeholder="you@example.com" required />
+      <form id="signup-form">
+        <input id="signup-email" type="email" name="email" placeholder="you@example.com" required />
         <input type="submit" value="Subscribe" />
       </form>
+      <p id="signup-message" class="signup-message" role="status"></p>
 
       <a class="archive-link" href="https://buttondown.com/ourscenenyc/archive/" target="_blank">
         Browse past issues &rarr;
       </a>
     </div>
+
+    <script>
+      (function () {
+        var form = document.getElementById('signup-form');
+        var emailInput = document.getElementById('signup-email');
+        var message = document.getElementById('signup-message');
+
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          var email = emailInput.value.trim();
+          if (!email) return;
+
+          message.textContent = 'Subscribing…';
+          message.className = 'signup-message pending';
+
+          var body = new FormData();
+          body.append('email', email);
+
+          fetch('https://buttondown.com/api/emails/embed-subscribe/ourscenenyc', {
+            method: 'POST',
+            body: body,
+            mode: 'no-cors',
+          })
+            .then(function () {
+              message.textContent = "Thanks! Check your inbox for a confirmation email.";
+              message.className = 'signup-message success';
+              emailInput.value = '';
+            })
+            .catch(function () {
+              message.textContent = 'Something went wrong. Please try again in a minute.';
+              message.className = 'signup-message error';
+            });
+        });
+      })();
+    </script>
 
     <h2>What we cover</h2>
     <p>
