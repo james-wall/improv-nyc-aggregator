@@ -203,6 +203,9 @@ def build_newsletter_html(curated: dict, date_range: str) -> str:
       <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e8e0d4;">
         Here's a curated digest of what caught our eye on NYC improv &amp; sketch stages this week. Just the stuff we'd actually tell a friend about.
       </p>
+      <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #b8b0b4;">
+        Forwarded this? <a href="https://james-wall.github.io/improv-nyc-aggregator" style="color: #FFD700;">Subscribe here</a> so you don't miss next week.
+      </p>
     </td>
   </tr>
 
@@ -219,8 +222,11 @@ def build_newsletter_html(curated: dict, date_range: str) -> str:
       <p style="margin: 0 0 8px 0; font-size: 16px; line-height: 1.6; color: #e8e0d4;">
         That's the week. Go see something live &mdash; your couch will still be there when you get back.
       </p>
-      <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #FFD700;">
+      <p style="margin: 0 0 12px 0; font-size: 16px; line-height: 1.6; color: #FFD700;">
         &mdash; The NYC Improv &amp; Sketch Digest crew &#127908;
+      </p>
+      <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #b8b0b4;">
+        Know someone who'd like this? Send them to <a href="https://james-wall.github.io/improv-nyc-aggregator" style="color: #FFD700;">ourscene</a>.
       </p>
     </td>
   </tr>
@@ -234,6 +240,9 @@ def build_newsletter_html(curated: dict, date_range: str) -> str:
       </p>
       <p style="margin: 10px 0 0 0; color: #ffcc80;">
         Got a tip or want to be featured? Reply to this email.
+      </p>
+      <p style="margin: 8px 0 0 0; font-size: 11px; color: #ffcc80;">
+        <a href="https://james-wall.github.io/improv-nyc-aggregator" style="color: #FFD700; text-decoration: none;">ourscene &middot; NYC</a>
       </p>
     </td>
   </tr>
@@ -258,6 +267,10 @@ def build_plaintext_newsletter(curated: dict, date_range: str) -> str:
         "Here's a curated digest of what caught our eye on NYC improv & "
         "sketch stages this week. Just the stuff we'd actually tell a "
         "friend about."
+    )
+    lines.append("")
+    lines.append(
+        "Forwarded this? Subscribe at https://james-wall.github.io/improv-nyc-aggregator"
     )
     lines.append("")
 
@@ -289,9 +302,12 @@ def build_plaintext_newsletter(curated: dict, date_range: str) -> str:
     lines.append("")
     lines.append("— The NYC Improv & Sketch Digest crew")
     lines.append("")
+    lines.append("Know someone who'd like this? Send them to https://james-wall.github.io/improv-nyc-aggregator")
+    lines.append("")
     lines.append("---")
     lines.append("Venues we follow: The PIT · Magnet · BCC · UCB · Second City NY · Caveat · The Rat")
     lines.append("Got a tip or want to be featured? Reply to this email.")
+    lines.append("ourscene · NYC — https://james-wall.github.io/improv-nyc-aggregator")
     return "\n".join(lines)
 
 
