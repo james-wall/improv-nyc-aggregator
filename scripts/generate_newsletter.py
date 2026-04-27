@@ -13,8 +13,10 @@ with Monday) and runs for ``future_days`` days from there.
 
 import sys
 import os
+import glob
+import re
 import html as html_lib
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -33,6 +35,7 @@ from src.venues import lookup as venue_lookup
 
 SUMMARY_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.txt')
 HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.html')
+ARCHIVE_DIR = os.path.join(os.path.dirname(__file__), '..', 'docs', 'archive')
 
 
 def scrape_all(future_days: int, start_date):
@@ -311,6 +314,125 @@ def build_plaintext_newsletter(curated: dict, date_range: str) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Archive (writes static issue pages and an index into docs/archive)
+# ---------------------------------------------------------------------------
+
+_ARCHIVE_NAV = (
+    '<div style="background-color: #1a1117; padding: 14px 20px; '
+    'text-align: center; border-bottom: 1px solid #2a2238;">'
+    '<a href="../" style="color: #FFD700; text-decoration: none; '
+    'font-family: \'Trebuchet MS\', sans-serif; font-size: 14px; '
+    'letter-spacing: 0.04em;">&larr; Back to Our Scene</a>'
+    '</div>'
+)
+
+
+def _wrap_for_archive(email_html: str) -> str:
+    """Inject a navigation banner at the top of an archived issue page."""
+    return re.sub(r"(<body[^>]*>)", r"\1" + _ARCHIVE_NAV, email_html, count=1)
+
+
+def _format_archive_label(date_iso: str) -> str:
+    """'2026-04-28' -> 'Week of April 28, 2026'."""
+    dt = datetime.strptime(date_iso, "%Y-%m-%d").date()
+    return f"Week of {dt.strftime('%B %-d, %Y')}"
+
+
+def _list_archive_issues() -> list[tuple[str, str]]:
+    """Return [(YYYY-MM-DD, filename)] for each archived issue, newest first."""
+    pattern = os.path.join(ARCHIVE_DIR, "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].html")
+    issues = []
+    for path in glob.glob(pattern):
+        fname = os.path.basename(path)
+        date_iso = fname[:10]
+        try:
+            datetime.strptime(date_iso, "%Y-%m-%d")
+        except ValueError:
+            continue
+        issues.append((date_iso, fname))
+    issues.sort(reverse=True)
+    return issues
+
+
+def _build_archive_index(issues: list[tuple[str, str]]) -> str:
+    """Render docs/archive/index.html listing every archived issue."""
+    if issues:
+        items = "\n".join(
+            f'      <li><a href="{_esc(fname)}">{_esc(_format_archive_label(date_iso))}</a></li>'
+            for date_iso, fname in issues
+        )
+        body = f"<ul class=\"issues\">\n{items}\n    </ul>"
+    else:
+        body = '<p class="empty">No issues archived yet — check back after Sunday.</p>'
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Past issues — Our Scene</title>
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
+      background-color: #1a1117; color: #e8e0e4; min-height: 100vh;
+      font-family: 'Trebuchet MS', 'Lucida Grande', Verdana, sans-serif;
+    }}
+    .hero {{
+      background-color: #8B0000; border-bottom: 4px solid #FFD700;
+      text-align: center; padding: 48px 24px;
+    }}
+    .hero h1 {{ color: #FFD700; font-size: 2.4rem; letter-spacing: 0.04em; }}
+    .hero .tagline {{ color: #ffecb3; margin-top: 6px; font-size: 1rem; }}
+    .hero a.back {{
+      display: inline-block; margin-top: 16px; color: #FFD700;
+      text-decoration: none; font-size: 0.9rem;
+      border-bottom: 1px solid transparent;
+    }}
+    .hero a.back:hover {{ border-bottom-color: #FFD700; }}
+    main {{ max-width: 620px; margin: 0 auto; padding: 48px 24px; }}
+    .issues {{ list-style: none; }}
+    .issues li {{
+      background-color: #1e1e2a; border-radius: 8px; margin-bottom: 12px;
+    }}
+    .issues a {{
+      display: block; padding: 18px 24px; color: #FFD700;
+      text-decoration: none; font-size: 1.05rem;
+      border: 1px solid transparent; border-radius: 8px; transition: border-color 0.2s;
+    }}
+    .issues a:hover {{ border-color: #FFD700; }}
+    .empty {{ color: #b8b0b4; text-align: center; }}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>Past issues</h1>
+    <p class="tagline">Every week we've covered, in one place.</p>
+    <a class="back" href="../">&larr; Back to Our Scene</a>
+  </header>
+  <main>
+    {body}
+  </main>
+</body>
+</html>
+"""
+
+
+def archive_issue(issue_date: date, html: str) -> None:
+    """Save a dated copy of the issue and rebuild the archive index."""
+    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+    date_iso = issue_date.strftime("%Y-%m-%d")
+    issue_path = os.path.join(ARCHIVE_DIR, f"{date_iso}.html")
+    with open(issue_path, "w", encoding="utf-8") as f:
+        f.write(_wrap_for_archive(html))
+    print(f"🗄  Archived issue to docs/archive/{date_iso}.html")
+
+    index_path = os.path.join(ARCHIVE_DIR, "index.html")
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(_build_archive_index(_list_archive_issues()))
+    print(f"🗄  Rebuilt archive index")
+
+
 def main(future_days: int = 7, send: bool = False):
     today = datetime.now().date()
     start_date = today + timedelta(days=1)            # newsletter starts tomorrow
@@ -356,6 +478,7 @@ def main(future_days: int = 7, send: bool = False):
             except Exception as e:
                 print(f"❌ Buttondown send failed: {e}")
                 sys.exit(1)
+            archive_issue(start_date, html)
         else:
             # Legacy SMTP fallback for local testing
             to = os.getenv("NEWSLETTER_RECIPIENT")
