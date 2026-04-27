@@ -93,30 +93,18 @@ def _esc(s) -> str:
 
 
 def render_day_table(day: dict) -> str:
-    """Render one day as an HTML table.
-
-    Header row spans all columns: "Monday, April 7  🎭"
-    Columns: Time (★) | Location (venue linked + neighborhood) | Title (linked) | Details
-    """
+    """Render one day as stacked show cards (mobile-friendly, single-column)."""
     label = _esc(day.get("label", ""))
     emoji = _esc(day.get("emoji", ""))
     shows = day.get("shows", []) or []
 
-    header_cell = (
-        '<th colspan="4" '
-        'style="background-color: #8B0000; color: #FFD700; padding: 12px 14px; '
+    header = (
+        '<tr><td style="background-color: #8B0000; color: #FFD700; padding: 12px 14px; '
         'text-align: left; font-size: 16px; letter-spacing: 1px; '
-        'border-bottom: 3px solid #FFD700;">'
-        f'{label} &nbsp; {emoji}'
-        '</th>'
+        f'border-bottom: 3px solid #FFD700;">{label} &nbsp; {emoji}</td></tr>'
     )
 
-    cell_base = (
-        'padding: 10px 12px; border-bottom: 1px solid #2a2238; '
-        'font-size: 14px; color: #e8e0d4; vertical-align: top;'
-    )
-
-    rows: list[str] = []
+    cards: list[str] = []
     for show in shows:
         time_s = _esc(show.get("time", ""))
         venue = show.get("venue", "")
@@ -127,34 +115,34 @@ def render_day_table(day: dict) -> str:
 
         neighborhood, maps_url = venue_lookup(venue)
 
-        location_html = (
+        star = "&#9733; " if starred else ""
+        venue_html = (
             f'<a href="{_esc(maps_url)}" '
             f'style="color: #FFD700; text-decoration: none;">{_esc(venue)}</a>'
-            f' ({_esc(neighborhood)})'
         )
-        star = "&#9733; " if starred else ""
-        time_html = f'{star}{time_s}'
         title_html = (
             f'<a href="{_esc(url)}" '
-            f'style="color: #FF6B6B; text-decoration: underline; font-weight: bold;">'
-            f'{_esc(title)}</a>'
+            f'style="color: #FF6B6B; text-decoration: underline; font-weight: bold; '
+            f'font-size: 16px;">{_esc(title)}</a>'
         )
 
-        rows.append(
-            "<tr>"
-            f'<td width="10%" style="{cell_base} white-space: nowrap; color: #FFD700;">{time_html}</td>'
-            f'<td width="20%" style="{cell_base}">{location_html}</td>'
-            f'<td width="28%" style="{cell_base}">{title_html}</td>'
-            f'<td width="42%" style="{cell_base} line-height: 1.5;">{details}</td>'
-            "</tr>"
+        card = (
+            '<tr><td style="padding: 14px 16px; border-bottom: 1px solid #2a2238;">'
+            f'<p style="margin: 0 0 4px 0; font-size: 13px; color: #FFD700;">'
+            f'{star}{time_s} &middot; {venue_html} ({_esc(neighborhood)})</p>'
+            f'<p style="margin: 0 0 6px 0;">{title_html}</p>'
+            f'<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #d4ccd0;">'
+            f'{details}</p>'
+            '</td></tr>'
         )
+        cards.append(card)
 
     return (
         '<table width="100%" cellpadding="0" cellspacing="0" '
         'style="background-color: #1e1e2a; border-radius: 8px; '
         'overflow: hidden; margin: 0 0 24px 0; border-collapse: collapse;">'
-        f"<tr>{header_cell}</tr>"
-        + "".join(rows)
+        + header
+        + "".join(cards)
         + "</table>"
     )
 
