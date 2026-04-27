@@ -167,7 +167,7 @@ def _build_jump_nav(days: list[dict]) -> str:
     return (
         '<p style="margin: 0 0 6px 0; font-size: 13px; letter-spacing: 1px; '
         'text-transform: uppercase; color: #ffecb3; text-align: center;">'
-        f'This week, {len(days)} days of shows &darr;</p>'
+        'Scroll down for shows every day of the week &darr;</p>'
         '<p style="margin: 0; font-size: 14px; line-height: 2.2; '
         'color: #FFD700; text-align: center;">'
         + ' &nbsp;&middot;&nbsp; '.join(items)
