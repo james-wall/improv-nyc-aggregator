@@ -10,10 +10,10 @@ from __future__ import annotations
 # Each entry: (match_keyword, neighborhood, google_maps_url)
 # Order matters — first match wins, so put more specific prefixes first.
 _VENUE_RULES: list[tuple[str, str, str]] = [
-    # The PIT — 123 E 24th St, NoMad
-    ("the pit", "NoMad",
+    # The PIT — 123 E 24th St, Flatiron
+    ("the pit", "Flatiron",
      "https://www.google.com/maps/search/?api=1&query=The+PIT+123+E+24th+St+New+York+NY"),
-    ("pit", "NoMad",
+    ("pit", "Flatiron",
      "https://www.google.com/maps/search/?api=1&query=The+PIT+123+E+24th+St+New+York+NY"),
 
     # Magnet Theater — 254 W 29th St, Chelsea / Hell's Kitchen border
@@ -26,9 +26,9 @@ _VENUE_RULES: list[tuple[str, str, str]] = [
     ("brooklyn comedy", "Bushwick",
      "https://www.google.com/maps/search/?api=1&query=Brooklyn+Comedy+Collective+Bushwick"),
 
-    # UCB NY — Hell's Kitchen mainstage
-    ("ucb", "Hell's Kitchen",
-     "https://www.google.com/maps/search/?api=1&query=UCB+Comedy+New+York"),
+    # UCB NY — 242 E 14th St, East Village
+    ("ucb", "East Village",
+     "https://www.google.com/maps/search/?api=1&query=UCB+Comedy+242+E+14th+St+New+York+NY"),
 
     # Second City NY — Williamsburg
     ("second city", "Williamsburg",
