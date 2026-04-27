@@ -96,10 +96,12 @@ def render_day_table(day: dict) -> str:
     """Render one day as stacked show cards (mobile-friendly, single-column)."""
     label = _esc(day.get("label", ""))
     emoji = _esc(day.get("emoji", ""))
+    date_iso = day.get("date_iso", "")
     shows = day.get("shows", []) or []
 
+    anchor = f' id="day-{_esc(date_iso)}"' if date_iso else ""
     header = (
-        '<tr><td style="background-color: #8B0000; color: #FFD700; padding: 12px 14px; '
+        f'<tr><td{anchor} style="background-color: #8B0000; color: #FFD700; padding: 12px 14px; '
         'text-align: left; font-size: 16px; letter-spacing: 1px; '
         f'border-bottom: 3px solid #FFD700;">{label} &nbsp; {emoji}</td></tr>'
     )
@@ -147,10 +149,37 @@ def render_day_table(day: dict) -> str:
     )
 
 
+def _build_jump_nav(days: list[dict]) -> str:
+    """Render a horizontal row of anchor links to each day."""
+    if not days:
+        return ""
+    links = []
+    for d in days:
+        date_iso = d.get("date_iso", "")
+        label = d.get("label", "")
+        short = label.split(",")[0].strip() if "," in label else label
+        emoji = d.get("emoji", "")
+        if date_iso:
+            links.append(
+                f'<a href="#day-{_esc(date_iso)}" style="color: #FFD700; '
+                f'text-decoration: none; white-space: nowrap;">'
+                f'{_esc(short)} {_esc(emoji)}</a>'
+            )
+    if not links:
+        return ""
+    return (
+        '<p style="margin: 0; font-size: 14px; line-height: 2; '
+        'color: #b8b0b4; text-align: center;">'
+        + ' &nbsp;&middot;&nbsp; '.join(links)
+        + '</p>'
+    )
+
+
 def build_newsletter_html(curated: dict, date_range: str) -> str:
     """Wrap the per-day tables in a full HTML email template."""
     days = curated.get("days", []) or []
     body_html = "".join(render_day_table(d) for d in days)
+    jump_nav = _build_jump_nav(days)
     if not body_html:
         body_html = (
             '<p style="color: #e8e0d4;">No standout shows surfaced this week. '
@@ -197,6 +226,13 @@ def build_newsletter_html(curated: dict, date_range: str) -> str:
       <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #b8b0b4;">
         Forwarded this? <a href="https://james-wall.github.io/improv-nyc-aggregator" style="color: #FFD700;">Subscribe here</a> so you don't miss next week.
       </p>
+    </td>
+  </tr>
+
+  <!-- Jump to -->
+  <tr>
+    <td style="padding: 0 32px 16px 32px;">
+      {jump_nav}
     </td>
   </tr>
 
