@@ -350,11 +350,12 @@ def main(future_days: int = 7, send: bool = False):
         subject = f"This Week in NYC Improv & Sketch 🎭 ({date_range})"
 
         if os.getenv("BUTTONDOWN_API_KEY"):
+            from src.emailer.buttondown_sender import send_newsletter
             try:
-                from src.emailer.buttondown_sender import send_newsletter
                 send_newsletter(subject=subject, body=plaintext, html=html)
             except Exception as e:
                 print(f"❌ Buttondown send failed: {e}")
+                sys.exit(1)
         else:
             # Legacy SMTP fallback for local testing
             to = os.getenv("NEWSLETTER_RECIPIENT")
@@ -367,6 +368,7 @@ def main(future_days: int = 7, send: bool = False):
             except Exception as e:
                 print(f"❌ Email send failed: {e}")
                 print("   Make sure GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set.")
+                sys.exit(1)
 
 
 if __name__ == "__main__":
