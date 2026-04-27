@@ -16,6 +16,9 @@ def send_newsletter(subject: str, body: str, html: str):
         BUTTONDOWN_API_URL,
         headers={
             "Authorization": f"Token {api_key}",
+            # One-time confirmation Buttondown requires per API key before
+            # the first real send — harmless to keep on subsequent calls.
+            "X-Buttondown-Live-Dangerously": "true",
         },
         json={
             "subject": subject,
