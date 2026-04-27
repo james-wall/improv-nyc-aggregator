@@ -150,27 +150,27 @@ def render_day_table(day: dict) -> str:
 
 
 def _build_jump_nav(days: list[dict]) -> str:
-    """Render a horizontal row of anchor links to each day."""
+    """Render a visual table-of-contents showing which days are covered."""
     if not days:
         return ""
-    links = []
+    items = []
     for d in days:
-        date_iso = d.get("date_iso", "")
         label = d.get("label", "")
         short = label.split(",")[0].strip() if "," in label else label
         emoji = d.get("emoji", "")
-        if date_iso:
-            links.append(
-                f'<a href="#day-{_esc(date_iso)}" style="color: #FFD700; '
-                f'text-decoration: none; white-space: nowrap;">'
-                f'{_esc(short)} {_esc(emoji)}</a>'
+        if short:
+            items.append(
+                f'<span style="white-space: nowrap;">{_esc(emoji)} {_esc(short)}</span>'
             )
-    if not links:
+    if not items:
         return ""
     return (
-        '<p style="margin: 0; font-size: 14px; line-height: 2; '
-        'color: #b8b0b4; text-align: center;">'
-        + ' &nbsp;&middot;&nbsp; '.join(links)
+        '<p style="margin: 0 0 6px 0; font-size: 13px; letter-spacing: 1px; '
+        'text-transform: uppercase; color: #ffecb3; text-align: center;">'
+        f'This week, {len(days)} days of shows &darr;</p>'
+        '<p style="margin: 0; font-size: 14px; line-height: 2.2; '
+        'color: #FFD700; text-align: center;">'
+        + ' &nbsp;&middot;&nbsp; '.join(items)
         + '</p>'
     )
 
