@@ -41,7 +41,7 @@ class PitScraper:
         self.session = requests.Session()
         self.session.headers.update(self._random_headers())
 
-    def _make_request(self, url: str, headers: dict = None, max_retries: int = 3):
+    def _make_request(self, url: str, headers: dict = None, max_retries: int = 5):
         """Make a GET request with retry logic and exponential backoff.
         Rotates User-Agent on each call to reduce fingerprinting."""
         request_headers = self._random_headers()
@@ -114,18 +114,7 @@ class PitScraper:
                 response = self._make_request(url)
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Restrict to current week container if present
-                week_section = soup.select_one("div.week--current")
-                if week_section:
-                    day_blocks = week_section.select("div.date.day")
-                else:
-                    day_blocks = soup.select("div.date.day")
-
-                # Drop any day blocks marked as past
-                day_blocks = [
-                    day for day in day_blocks
-                    if "past" not in " ".join(day.get("class", []))
-                ]
+                day_blocks = soup.select("div.date.day")
 
                 for day in day_blocks:
                     month_span = day.select_one(".day__month")

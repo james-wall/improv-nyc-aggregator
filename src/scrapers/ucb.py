@@ -24,11 +24,12 @@ class UcbScraper:
         store.init_db()
         self.scraper = cloudscraper.create_scraper()
 
-    def _make_request(self, url: str, max_retries: int = 3):
+    def _make_request(self, url: str, max_retries: int = 5):
         """Make a GET request with retry logic and exponential backoff.
 
         Lets cloudscraper manage its own headers — overriding them with
         custom Sec-Fetch-* headers triggers Cloudflare's bot detection.
+        Creates a fresh session on 5xx errors to get a new TLS fingerprint.
         """
         print("making request for: " + str(url))
 
@@ -40,9 +41,12 @@ class UcbScraper:
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise e
-                wait_time = (2 ** attempt) + random.uniform(0, 1)
-                print(f"Request failed, retrying in {wait_time:.1f}s... ({e})")
+                wait_time = (2 ** attempt) * 2 + random.uniform(0, 2)
+                status = getattr(getattr(e, 'response', None), 'status_code', None)
+                print(f"  Request failed ({status or e}), retrying in {wait_time:.1f}s...")
                 time.sleep(wait_time)
+                if status and status >= 500:
+                    self.scraper = cloudscraper.create_scraper()
 
     def _parse_card_datetime(self, date_text: str) -> tuple[datetime | None, bool]:
         """Parse a date string like 'Friday, March 27, 2026 @ 7:00 PM'.
