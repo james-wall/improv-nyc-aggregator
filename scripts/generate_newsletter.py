@@ -457,7 +457,7 @@ def archive_issue(issue_date: date, html: str) -> None:
     print(f"🗄  Rebuilt archive index")
 
 
-def main(future_days: int = 7, send: bool = False):
+def main(future_days: int = 7, send: bool = False, draft: bool = False):
     today = datetime.now().date()
     start_date = today + timedelta(days=1)            # newsletter starts tomorrow
     end_date = start_date + timedelta(days=future_days - 1)
@@ -498,11 +498,12 @@ def main(future_days: int = 7, send: bool = False):
         if os.getenv("BUTTONDOWN_API_KEY"):
             from src.emailer.buttondown_sender import send_newsletter
             try:
-                send_newsletter(subject=subject, body=plaintext, html=html)
+                send_newsletter(subject=subject, body=plaintext, html=html, draft=draft)
             except Exception as e:
-                print(f"❌ Buttondown send failed: {e}")
+                print(f"❌ Buttondown {'draft' if draft else 'send'} failed: {e}")
                 sys.exit(1)
-            archive_issue(start_date, html)
+            if not draft:
+                archive_issue(start_date, html)
         else:
             # Legacy SMTP fallback for local testing
             to = os.getenv("NEWSLETTER_RECIPIENT")
@@ -521,6 +522,7 @@ def main(future_days: int = 7, send: bool = False):
 if __name__ == "__main__":
     future_days = 7
     send_mode = "--send" in sys.argv
+    draft_mode = "--draft" in sys.argv
     dev_mode = "dev" in sys.argv
 
     for arg in sys.argv[1:]:
@@ -531,4 +533,4 @@ if __name__ == "__main__":
     if dev_mode and future_days == 7:
         future_days = 3
 
-    main(future_days=future_days, send=send_mode)
+    main(future_days=future_days, send=send_mode, draft=draft_mode)
