@@ -33,7 +33,7 @@ class CaveatScraper:
         store.init_db()
         self.session = requests.Session()
 
-    def _make_request(self, url: str, max_retries: int = 3):
+    def _make_request(self, url: str, max_retries: int = 5):
         """Make a GET request with retry logic and exponential backoff."""
         headers = {"User-Agent": random.choice(self.USER_AGENTS)}
         print("making request for: " + str(url))
@@ -50,33 +50,27 @@ class CaveatScraper:
                 print(f"Request failed, retrying in {wait_time:.1f}s... ({e})")
                 time.sleep(wait_time)
 
-    def _parse_server_data(self, html: str) -> list[dict]:
-        """Extract event list from the __SERVER_DATA__ blob in the page."""
-        # The blob sits between __SERVER_DATA__ = {...} and the next
-        # window.__ assignment or </script> tag.
+    def _parse_event_data(self, html: str) -> list[dict]:
+        """Extract event list from the __NEXT_DATA__ blob in the page.
+
+        Eventbrite migrated to Next.js — data moved from __SERVER_DATA__
+        to the standard <script id="__NEXT_DATA__"> tag.
+        """
         match = re.search(
-            r'__SERVER_DATA__\s*=\s*(\{.*?})\s*(?:;\s*)?(?:window\.|</script>)',
+            r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
             html, re.DOTALL,
         )
         if not match:
-            print("  ⚠️ Could not find __SERVER_DATA__ in page")
+            print("  ⚠️ Could not find __NEXT_DATA__ in page")
             return []
 
         try:
             data = json.loads(match.group(1))
-            events = data.get("view_data", {}).get("events", {}).get("future_events", [])
+            events = data.get("props", {}).get("pageProps", {}).get("upcomingEvents", [])
             return events
-        except (json.JSONDecodeError, AttributeError) as e:
-            print(f"  ⚠️ Error parsing __SERVER_DATA__: {e}")
+        except (json.JSONDecodeError, AttributeError, KeyError) as e:
+            print(f"  ⚠️ Error parsing __NEXT_DATA__: {e}")
             return []
-
-    def _build_event_url(self, item: dict) -> str:
-        """Construct the Eventbrite event URL from slug and ID."""
-        slug = item.get("slugified_name", "")
-        event_id = item.get("id", "")
-        if slug and event_id:
-            return f"https://www.eventbrite.com/e/{slug}-{event_id}"
-        return ""
 
     def fetch(self, future_days: int = 3) -> list[Event]:
         """Return Caveat events occurring within the next ``future_days`` days."""
@@ -87,18 +81,19 @@ class CaveatScraper:
         try:
             print(f"🔗 Fetching: {self.ORGANIZER_URL}")
             response = self._make_request(self.ORGANIZER_URL)
-            items = self._parse_server_data(response.text)
+            items = self._parse_event_data(response.text)
             print(f"  Found {len(items)} upcoming Eventbrite events")
 
             for item in items:
-                # Parse start time
-                start_data = item.get("start", {})
-                local_str = start_data.get("local", "")
-                if not local_str:
+                # Parse start time from split date/time fields
+                date_str = item.get("start_date", "")
+                time_str = item.get("start_time", "")
+                if not date_str:
                     continue
 
                 try:
-                    start_dt = datetime.fromisoformat(local_str)
+                    iso_str = f"{date_str}T{time_str}" if time_str else date_str
+                    start_dt = datetime.fromisoformat(iso_str)
                 except ValueError:
                     continue
 
@@ -106,14 +101,15 @@ class CaveatScraper:
                     continue
 
                 # Extract fields
-                name_data = item.get("name", {})
-                title = name_data.get("text", "") if isinstance(name_data, dict) else str(name_data)
+                title = item.get("name", "")
                 if not title:
                     continue
 
-                event_url = self._build_event_url(item)
-                price = item.get("price_range", "")
-                is_free = item.get("is_free", False)
+                event_url = item.get("url", "")
+                ticket_info = item.get("ticket_availability", {})
+                is_free = ticket_info.get("is_free", False)
+                min_price = ticket_info.get("minimum_ticket_price", {})
+                price = f"${min_price.get('major_value', '')}" if min_price.get("major_value") else ""
                 price_note = "Free" if is_free else price
 
                 # Use cached description if available

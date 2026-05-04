@@ -54,7 +54,7 @@ class BccScraper:
     def _random_headers(cls) -> dict:
         return {**cls.BASE_HEADERS, "User-Agent": random.choice(cls.USER_AGENTS)}
 
-    def _make_request(self, url: str, max_retries: int = 3):
+    def _make_request(self, url: str, max_retries: int = 5):
         for attempt in range(max_retries):
             try:
                 response = self.session.get(url, timeout=60, headers=self._random_headers())

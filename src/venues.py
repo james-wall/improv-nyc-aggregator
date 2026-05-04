@@ -38,9 +38,9 @@ _VENUE_RULES: list[tuple[str, str, str]] = [
     ("caveat", "Lower East Side",
      "https://www.google.com/maps/search/?api=1&query=Caveat+21A+Clinton+St+New+York+NY"),
 
-    # The Rat — Bushwick
-    ("rat", "Bushwick",
-     "https://www.google.com/maps/search/?api=1&query=The+Rat+NYC+Bushwick"),
+    # The Rat — 68 Jay St, Downtown Brooklyn
+    ("rat", "Downtown Brooklyn",
+     "https://www.google.com/maps/search/?api=1&query=The+Rat+68+Jay+St+Brooklyn+NY"),
 ]
 
 

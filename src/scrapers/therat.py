@@ -6,6 +6,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import time
 import xml.etree.ElementTree as ET
 from src.models import Event
@@ -37,7 +38,7 @@ class TheRatScraper:
         store.init_db()
         self.session = requests.Session()
 
-    def _make_request(self, url: str, max_retries: int = 3):
+    def _make_request(self, url: str, max_retries: int = 5):
         """Make a GET request with retry logic and exponential backoff."""
         headers = {"User-Agent": random.choice(self.USER_AGENTS)}
         print("making request for: " + str(url))
@@ -203,7 +204,7 @@ class TheRatScraper:
                 if start_str:
                     try:
                         start_dt = datetime.fromisoformat(start_str)
-                        # Strip timezone info for naive local time
+                        start_dt = start_dt.astimezone(ZoneInfo("America/New_York"))
                         start_dt = start_dt.replace(tzinfo=None)
                         has_time = True
                     except ValueError:

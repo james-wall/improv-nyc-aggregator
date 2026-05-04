@@ -52,7 +52,7 @@ class MagnetScraper:
         self.session = requests.Session()
         self.session.headers.update(self._random_headers())
 
-    def _make_request(self, url: str, headers: dict = None, max_retries: int = 3):
+    def _make_request(self, url: str, headers: dict = None, max_retries: int = 5):
         """Make a GET request with retry logic and exponential backoff."""
         request_headers = self._random_headers()
         if headers:
