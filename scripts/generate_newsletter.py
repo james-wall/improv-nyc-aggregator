@@ -478,6 +478,17 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False):
     show_count = sum(len(d.get("shows", []) or []) for d in curated.get("days", []) or [])
     print(f"  📋 {day_count} days, {show_count} curated shows")
 
+    # Validate that every scraped venue made it into the curated output.
+    scraped_venues = {e.venue for e in events}
+    curated_venues = {
+        show.get("venue")
+        for day in (curated.get("days") or [])
+        for show in (day.get("shows") or [])
+    }
+    missing = scraped_venues - curated_venues
+    if missing:
+        print(f"\n  ⚠️  Venue coverage gap — not in curated output: {', '.join(sorted(missing))}")
+
     # 3. Build full newsletter (plain text + HTML)
     plaintext = build_plaintext_newsletter(curated, date_range)
     html = build_newsletter_html(curated, date_range)

@@ -50,6 +50,39 @@ class CaveatScraper:
                 print(f"Request failed, retrying in {wait_time:.1f}s... ({e})")
                 time.sleep(wait_time)
 
+    def _fetch_event_description(self, url: str) -> str:
+        """Fetch an individual Eventbrite event page and extract its description."""
+        try:
+            resp = self._make_request(url, max_retries=3)
+            html = resp.text
+
+            # Try __NEXT_DATA__ first — most reliable
+            match = re.search(
+                r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
+                html, re.DOTALL,
+            )
+            if match:
+                data = json.loads(match.group(1))
+                # Path varies by Eventbrite page version
+                event = (
+                    data.get("props", {})
+                    .get("pageProps", {})
+                    .get("event", {})
+                )
+                desc = event.get("description", "") or event.get("summary", "")
+                if desc and len(desc) > 20:
+                    return desc.strip()
+
+            # Fallback: og:description meta tag
+            meta = re.search(r'<meta\s+property="og:description"\s+content="([^"]+)"', html)
+            if meta:
+                import html as html_lib
+                return html_lib.unescape(meta.group(1)).strip()
+
+        except Exception as e:
+            print(f"  ⚠️  Could not fetch description for {url}: {e}")
+        return ""
+
     def _parse_event_data(self, html: str) -> list[dict]:
         """Extract event list from the __NEXT_DATA__ blob in the page.
 
@@ -112,13 +145,17 @@ class CaveatScraper:
                 price = f"${min_price.get('major_value', '')}" if min_price.get("major_value") else ""
                 price_note = "Free" if is_free else price
 
-                # Use cached description if available
+                # Use cached description if available, otherwise enrich from event page
                 cached = store.get_show(event_url)
                 if cached and cached.get("description"):
                     description = cached["description"]
                     print(f"  ✓ Cached: {title}")
                 else:
                     description = item.get("summary", "")
+                    if not description and event_url:
+                        print(f"  🔍 Fetching description for: {title}")
+                        description = self._fetch_event_description(event_url)
+                        time.sleep(random.uniform(1.0, 2.0))
 
                 # Persist to knowledge store
                 show_fmt = detect_show_format(title)

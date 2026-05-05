@@ -94,18 +94,56 @@ class TheRatScraper:
         return urls
 
     def _fetch_event_jsonld(self, url: str) -> dict | None:
-        """Fetch an event page and extract the JSON-LD structured data."""
+        """Fetch an event page and extract the JSON-LD structured data.
+
+        When the JSON-LD description is absent or very short, falls back to
+        visible paragraph text from the page body.
+        """
         try:
             response = self._make_request(url)
             soup = BeautifulSoup(response.text, "html.parser")
+            data: dict | None = None
             script = soup.find("script", type="application/ld+json")
             if script and script.string:
-                data = json.loads(script.string)
-                if data.get("@type") == "Event":
-                    return data
+                parsed = json.loads(script.string)
+                if parsed.get("@type") == "Event":
+                    data = parsed
+
+            if data is None:
+                return None
+
+            # If description is thin, supplement from visible page text
+            if len((data.get("description") or "").strip()) < 40:
+                fallback = self._extract_page_description(soup)
+                if fallback:
+                    data["description"] = fallback
+
+            return data
         except Exception as e:
             print(f"  ⚠️ Error fetching {url}: {e}")
         return None
+
+    def _extract_page_description(self, soup: BeautifulSoup) -> str:
+        """Pull the longest coherent paragraph block from the event page body."""
+        # Wix event pages put the description in data-hook="description" or similar.
+        # Cast a wide net: collect all <p> text, skip nav/boilerplate, pick the longest.
+        for attr_val in ("description", "event-description"):
+            el = soup.find(attrs={"data-hook": attr_val})
+            if el:
+                text = el.get_text(" ", strip=True)
+                if len(text) > 40:
+                    return text[:600]
+
+        # Fallback: gather all paragraph text, return the longest single block
+        paragraphs = [
+            p.get_text(" ", strip=True)
+            for p in soup.find_all("p")
+            if len(p.get_text(strip=True)) > 60
+        ]
+        if paragraphs:
+            best = max(paragraphs, key=len)
+            return best[:600]
+        return ""
 
     def fetch(self, future_days: int = 3) -> list[Event]:
         """Return The Rat events occurring within the next ``future_days`` days.
