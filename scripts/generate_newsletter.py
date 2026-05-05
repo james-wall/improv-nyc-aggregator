@@ -73,15 +73,15 @@ def scrape_all(future_days: int, start_date):
     all_events.sort(key=lambda e: e.start_time or datetime.max)
 
     EXCLUDED_FORMATS = {"class_show", "jam", "open_mic"}
-    filtered = [e for e in all_events if e.show_format in EXCLUDED_FORMATS]
+    extras = [e for e in all_events if e.show_format in EXCLUDED_FORMATS]
     newsletter_events = [e for e in all_events if e.show_format not in EXCLUDED_FORMATS]
-    if filtered:
+    if extras:
         from collections import Counter
-        fmt_counts = Counter(e.show_format for e in filtered)
+        fmt_counts = Counter(e.show_format for e in extras)
         parts = [f"{count} {fmt}" for fmt, count in sorted(fmt_counts.items())]
-        print(f"  📚 Filtered out: {', '.join(parts)}")
+        print(f"  📚 Extras (class shows / jams / open mics): {', '.join(parts)}")
 
-    return newsletter_events
+    return newsletter_events, extras
 
 
 # ---------------------------------------------------------------------------
@@ -175,10 +175,84 @@ def _build_jump_nav(days: list[dict]) -> str:
     )
 
 
-def build_newsletter_html(curated: dict, date_range: str) -> str:
+def render_extras_section(extras: list) -> str:
+    """Render a compact 'Class shows, jams & open mics' section."""
+    if not extras:
+        return ""
+
+    from collections import defaultdict
+    by_day: dict[str, list] = defaultdict(list)
+    for e in sorted(extras, key=lambda x: x.start_time or datetime.max):
+        key = e.start_time.strftime("%A, %B %-d") if e.start_time else "TBA"
+        by_day[key].append(e)
+
+    rows = ""
+    for day_label, events in by_day.items():
+        rows += (
+            f'<tr><td style="padding: 6px 12px 2px 12px; font-size: 12px; '
+            f'letter-spacing: 1px; color: #9d8fa6; text-transform: uppercase;">'
+            f'{_esc(day_label)}</td></tr>'
+        )
+        for e in events:
+            time_s = e.start_time.strftime("%-I:%M %p") if e.start_time else "TBA"
+            fmt_label = {"class_show": "Class Show", "jam": "Jam", "open_mic": "Open Mic"}.get(
+                e.show_format or "", e.show_format or ""
+            )
+            neighborhood, maps_url = venue_lookup(e.venue or "")
+            venue_html = (
+                f'<a href="{_esc(maps_url)}" style="color: #b8a0c8; text-decoration: none;">'
+                f'{_esc(e.venue)}</a>'
+            )
+            title_html = (
+                f'<a href="{_esc(e.url or "")}" style="color: #c8b8d8; text-decoration: none;">'
+                f'{_esc(e.title)}</a>'
+            ) if e.url else _esc(e.title)
+            rows += (
+                f'<tr><td style="padding: 3px 12px 3px 20px; font-size: 13px; color: #b8b0c4;">'
+                f'{_esc(time_s)} &middot; {venue_html} &middot; {title_html}'
+                f' <span style="color: #7a6a8a; font-size: 11px;">({_esc(fmt_label)})</span>'
+                f'</td></tr>'
+            )
+
+    return (
+        '<table width="100%" cellpadding="0" cellspacing="0" '
+        'style="background-color: #17141f; border-radius: 6px; '
+        'overflow: hidden; margin: 0 0 24px 0; border-collapse: collapse; '
+        'border: 1px solid #2a2238;">'
+        '<tr><td style="padding: 10px 12px 6px 12px; background-color: #1e1828; '
+        'font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #9d8fa6; '
+        'border-bottom: 1px solid #2a2238;">'
+        'Also this week &mdash; class shows, jams &amp; open mics'
+        '</td></tr>'
+        + rows
+        + '</table>'
+    )
+
+
+def render_extras_plaintext(extras: list) -> str:
+    """Plain-text version of the extras section."""
+    if not extras:
+        return ""
+    from collections import defaultdict
+    by_day: dict[str, list] = defaultdict(list)
+    for e in sorted(extras, key=lambda x: x.start_time or datetime.max):
+        key = e.start_time.strftime("%A, %B %-d") if e.start_time else "TBA"
+        by_day[key].append(e)
+
+    lines = ["", "ALSO THIS WEEK — CLASS SHOWS, JAMS & OPEN MICS", "-" * 40]
+    for day_label, events in by_day.items():
+        lines.append(day_label)
+        for e in events:
+            time_s = e.start_time.strftime("%-I:%M %p") if e.start_time else "TBA"
+            lines.append(f"  {time_s} — {e.venue} — {e.title}")
+    return "\n".join(lines)
+
+
+def build_newsletter_html(curated: dict, date_range: str, extras: list | None = None) -> str:
     """Wrap the per-day tables in a full HTML email template."""
     days = curated.get("days", []) or []
     body_html = "".join(render_day_table(d) for d in days)
+    extras_html = render_extras_section(extras or [])
     jump_nav = _build_jump_nav(days)
     if not body_html:
         body_html = (
@@ -240,6 +314,7 @@ def build_newsletter_html(curated: dict, date_range: str) -> str:
   <tr>
     <td style="padding: 0 32px;">
       {body_html}
+      {extras_html}
     </td>
   </tr>
 
@@ -281,7 +356,7 @@ def build_newsletter_html(curated: dict, date_range: str) -> str:
 </html>"""
 
 
-def build_plaintext_newsletter(curated: dict, date_range: str) -> str:
+def build_plaintext_newsletter(curated: dict, date_range: str, extras: list | None = None) -> str:
     days = curated.get("days", []) or []
     lines: list[str] = []
     lines.append("THIS WEEK IN NYC IMPROV & SKETCH")
@@ -320,6 +395,10 @@ def build_plaintext_newsletter(curated: dict, date_range: str) -> str:
             if url:
                 lines.append(f"    {url}")
             lines.append("")
+        lines.append("")
+
+    if extras:
+        lines.append(render_extras_plaintext(extras))
         lines.append("")
 
     lines.append(
@@ -457,15 +536,15 @@ def archive_issue(issue_date: date, html: str) -> None:
     print(f"🗄  Rebuilt archive index")
 
 
-def main(future_days: int = 7, send: bool = False, draft: bool = False):
+def main(future_days: int = 7, send: bool = False, draft: bool = False, instagram: bool = False):
     today = datetime.now().date()
     start_date = today + timedelta(days=1)            # newsletter starts tomorrow
     end_date = start_date + timedelta(days=future_days - 1)
     date_range = f"{start_date.strftime('%b %d')} – {end_date.strftime('%b %d, %Y')}"
 
     # 1. Scrape all venues, dropping anything before tomorrow
-    events = scrape_all(future_days, start_date)
-    print(f"\n📅 Total: {len(events)} events in window")
+    events, extras = scrape_all(future_days, start_date)
+    print(f"\n📅 Total: {len(events)} curated-eligible + {len(extras)} extras events in window")
 
     if not events:
         print("❌ No events found across any venue.")
@@ -490,8 +569,8 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False):
         print(f"\n  ⚠️  Venue coverage gap — not in curated output: {', '.join(sorted(missing))}")
 
     # 3. Build full newsletter (plain text + HTML)
-    plaintext = build_plaintext_newsletter(curated, date_range)
-    html = build_newsletter_html(curated, date_range)
+    plaintext = build_plaintext_newsletter(curated, date_range, extras=extras)
+    html = build_newsletter_html(curated, date_range, extras=extras)
 
     # 4. Save to files
     with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
@@ -529,12 +608,40 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False):
                 print("   Make sure GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set.")
                 sys.exit(1)
 
+    # 6. Optionally post to Instagram
+    if instagram:
+        print("\n📸 Generating Instagram image...")
+        from src.instagram.image_generator import generate_image
+        img_filename = f"{start_date.strftime('%Y-%m-%d')}.png"
+        img_local = os.path.join(os.path.dirname(__file__), '..', 'docs', 'instagram', img_filename)
+        generate_image(curated, date_range, img_local)
+
+        if os.getenv("INSTAGRAM_ACCESS_TOKEN") and os.getenv("INSTAGRAM_ACCOUNT_ID"):
+            from src.instagram.poster import post_to_instagram
+            # Image must be public; use raw.githubusercontent.com so it's available
+            # immediately after the Actions commit-and-push step.
+            repo = "james-wall/improv-nyc-aggregator"
+            img_url = f"https://raw.githubusercontent.com/{repo}/main/docs/instagram/{img_filename}"
+            caption = (
+                f"This week in NYC improv & sketch ({date_range}) 🎭\n\n"
+                "Full picks + every venue in the newsletter — link in bio to subscribe.\n\n"
+                "#NYCImprov #SketchComedy #NYCComedy #ImprovNYC #NYC #Comedy"
+            )
+            try:
+                post_to_instagram(image_url=img_url, caption=caption)
+            except Exception as e:
+                print(f"❌ Instagram post failed: {e}")
+                sys.exit(1)
+        else:
+            print("  ⚠️  INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID not set — skipping post.")
+
 
 if __name__ == "__main__":
     future_days = 7
-    send_mode = "--send" in sys.argv
-    draft_mode = "--draft" in sys.argv
-    dev_mode = "dev" in sys.argv
+    send_mode      = "--send"      in sys.argv
+    draft_mode     = "--draft"     in sys.argv
+    instagram_mode = "--instagram" in sys.argv
+    dev_mode       = "dev"         in sys.argv
 
     for arg in sys.argv[1:]:
         if arg.isdigit():
@@ -544,4 +651,4 @@ if __name__ == "__main__":
     if dev_mode and future_days == 7:
         future_days = 3
 
-    main(future_days=future_days, send=send_mode, draft=draft_mode)
+    main(future_days=future_days, send=send_mode, draft=draft_mode, instagram=instagram_mode)

@@ -20,7 +20,7 @@ jobs:
   send-newsletter:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # archive issues are committed back to main
+      contents: write   # archive issues and instagram images are committed back to main
 
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +29,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install system fonts
+        run: sudo apt-get install -y fonts-liberation
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -36,22 +39,26 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.mode }}" = "draft" ]; then
             python scripts/generate_newsletter.py --send --draft
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            python scripts/generate_newsletter.py --send --instagram
           else
-            python scripts/generate_newsletter.py --send
+            python scripts/generate_newsletter.py --send --instagram
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BUTTONDOWN_API_KEY: ${{ secrets.BUTTONDOWN_API_KEY }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
 
-      - name: Commit archived issue
-        if: github.event_name == 'schedule'
+      - name: Commit archive and Instagram image
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'send'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/archive/
+          git add docs/archive/ docs/instagram/
           if git diff --staged --quiet; then
-            echo "No archive changes to commit"
+            echo "No changes to commit"
           else
-            git commit -m "Archive issue $(date -u +%Y-%m-%d)"
+            git commit -m "Archive issue and Instagram image $(date -u +%Y-%m-%d)"
             git push
           fi
