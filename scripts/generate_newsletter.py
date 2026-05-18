@@ -618,15 +618,13 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False, instagra
 
         if os.getenv("INSTAGRAM_ACCESS_TOKEN") and os.getenv("INSTAGRAM_ACCOUNT_ID"):
             from src.instagram.poster import post_to_instagram
-            # Image must be public; use raw.githubusercontent.com so it's available
-            # immediately after the Actions commit-and-push step.
+            from src.instagram.caption import build_caption
+            # raw.githubusercontent.com is available immediately after push,
+            # unlike GitHub Pages which takes 1-2 min to redeploy.
             repo = "james-wall/improv-nyc-aggregator"
             img_url = f"https://raw.githubusercontent.com/{repo}/main/docs/instagram/{img_filename}"
-            caption = (
-                f"This week in NYC improv & sketch ({date_range}) 🎭\n\n"
-                "Full picks + every venue in the newsletter — link in bio to subscribe.\n\n"
-                "#NYCImprov #SketchComedy #NYCComedy #ImprovNYC #NYC #Comedy"
-            )
+            caption = build_caption(curated, date_range)
+            print(f"  📝 Caption preview:\n{caption[:200]}…")
             try:
                 post_to_instagram(image_url=img_url, caption=caption)
             except Exception as e:

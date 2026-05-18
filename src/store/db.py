@@ -34,6 +34,29 @@ def init_db():
                 start_time  TEXT NOT NULL,
                 UNIQUE(show_id, start_time)
             );
+
+            -- Performer registry: people who perform at NYC improv/sketch venues.
+            CREATE TABLE IF NOT EXISTS performers (
+                id             INTEGER PRIMARY KEY,
+                name           TEXT NOT NULL,
+                ig_handle      TEXT,          -- without @
+                twitter_handle TEXT,          -- without @
+                tiktok_handle  TEXT,          -- without @
+                website        TEXT,
+                bio            TEXT,
+                home_venue     TEXT,
+                created_at     TEXT NOT NULL,
+                updated_at     TEXT NOT NULL,
+                UNIQUE(name COLLATE NOCASE)
+            );
+
+            -- Links performers to specific shows in the shows table.
+            CREATE TABLE IF NOT EXISTS show_performers (
+                show_id        INTEGER NOT NULL REFERENCES shows(id),
+                performer_id   INTEGER NOT NULL REFERENCES performers(id),
+                role           TEXT,          -- 'performer', 'director', 'host', etc.
+                PRIMARY KEY (show_id, performer_id)
+            );
         """)
         # Migrations for existing DBs
         for stmt in [
