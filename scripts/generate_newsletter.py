@@ -341,7 +341,9 @@ def build_newsletter_html(curated: dict, date_range: str, extras: list | None = 
         &#127902; THE PIT &middot; MAGNET &middot; BCC &middot; UCB &middot; SECOND CITY &middot; CAVEAT &middot; THE RAT &#127902;
       </p>
       <p style="margin: 10px 0 0 0; color: #ffcc80;">
-        Got a tip or want to be featured? Reply to this email.
+        Running a show worth seeing? Reply to this email or DM
+        <a href="https://instagram.com/ourscenenyc" style="color: #FFD700;">@ourscenenyc</a>
+        to get it in front of our readers.
       </p>
       <p style="margin: 8px 0 0 0; font-size: 11px; color: #ffcc80;">
         <a href="https://james-wall.github.io/improv-nyc-aggregator" style="color: #FFD700; text-decoration: none;">ourscene &middot; NYC</a>
@@ -617,30 +619,35 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False, instagra
                 print("   Make sure GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set.")
                 sys.exit(1)
 
-    # 6. Optionally post to Instagram
+    # 6. Optionally post to Instagram carousel
     if instagram:
-        print("\n📸 Generating Instagram image...")
-        from src.instagram.image_generator import generate_image
-        img_filename = f"{start_date.strftime('%Y-%m-%d')}.png"
-        img_local = os.path.join(os.path.dirname(__file__), '..', 'docs', 'instagram', img_filename)
-        generate_image(curated, date_range, img_local)
+        print("\n📸 Generating Instagram carousel...")
+        from src.instagram.image_generator import generate_carousel
+        from src.instagram.caption import build_caption
+
+        week_slug     = start_date.strftime("%Y-%m-%d")
+        carousel_dir  = os.path.join(os.path.dirname(__file__), '..', 'docs', 'instagram', week_slug)
+        slide_paths   = generate_carousel(curated, date_range, carousel_dir)
 
         if os.getenv("INSTAGRAM_ACCESS_TOKEN") and os.getenv("INSTAGRAM_ACCOUNT_ID"):
-            from src.instagram.poster import post_to_instagram
-            from src.instagram.caption import build_caption
-            # raw.githubusercontent.com is available immediately after push,
-            # unlike GitHub Pages which takes 1-2 min to redeploy.
+            from src.instagram.poster import post_carousel
+            # raw.githubusercontent.com is available immediately after the
+            # Actions commit+push step — no CDN delay like GitHub Pages.
             repo = "james-wall/improv-nyc-aggregator"
-            img_url = f"https://raw.githubusercontent.com/{repo}/main/docs/instagram/{img_filename}"
+            base_url = f"https://raw.githubusercontent.com/{repo}/main/docs/instagram/{week_slug}"
+            img_urls = [
+                f"{base_url}/{os.path.basename(p)}"
+                for p in slide_paths
+            ]
             caption = build_caption(curated, date_range)
-            print(f"  📝 Caption preview:\n{caption[:200]}…")
+            print(f"  📝 Caption preview:\n{caption[:300]}…")
             try:
-                post_to_instagram(image_url=img_url, caption=caption)
+                post_carousel(image_urls=img_urls, caption=caption)
             except Exception as e:
-                print(f"❌ Instagram post failed: {e}")
+                print(f"❌ Instagram carousel post failed: {e}")
                 sys.exit(1)
         else:
-            print("  ⚠️  INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID not set — skipping post.")
+            print("  ⚠️  INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID not set — slides saved locally only.")
 
 
 if __name__ == "__main__":

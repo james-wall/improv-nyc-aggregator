@@ -50,7 +50,7 @@ jobs:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
 
-      - name: Commit archive and Instagram image
+      - name: Commit archive and Instagram carousel
         if: github.event_name == 'schedule' || github.event.inputs.mode == 'send'
         run: |
           git config user.name "github-actions[bot]"
@@ -59,6 +59,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Archive issue and Instagram image $(date -u +%Y-%m-%d)"
+            git commit -m "Archive issue and Instagram carousel $(date -u +%Y-%m-%d)"
             git push
           fi
