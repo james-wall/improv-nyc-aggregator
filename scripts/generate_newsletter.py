@@ -550,7 +550,16 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False, instagra
         print("❌ No events found across any venue.")
         return
 
-    # 2. Curate via LLM into structured per-day JSON
+    # 2. Extract performers from descriptions and enrich handles (non-blocking)
+    try:
+        from src.agents.performer_extractor import extract_performers_from_events
+        from src.agents.performer_enricher import enrich_performers
+        extract_performers_from_events(events + extras)
+        enrich_performers(limit=15)
+    except Exception as e:
+        print(f"  ⚠️  Performer enrichment skipped: {e}")
+
+    # 3. Curate via LLM into structured per-day JSON
     print("\n🪄 Curating newsletter with Gemini...")
     curated = curate_events_json(events, days=future_days, date_range=date_range)
     day_count = len(curated.get("days", []) or [])

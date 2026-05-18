@@ -100,6 +100,58 @@ def cmd_show(args):
                   f"{r['venue']}  —  {r['title']}  [{r['role']}]")
 
 
+def cmd_pending(args):
+    """Show performers with auto-discovered handles waiting for verification."""
+    init_db()
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT name, ig_handle, home_venue FROM performers
+            WHERE ig_confidence = 'auto'
+            ORDER BY name
+            """
+        ).fetchall()
+    if not rows:
+        print("No performers pending verification.")
+        return
+    print(f"{'Name':<30} {'Auto-discovered IG':<28} {'Venue'}")
+    print("-" * 80)
+    for r in rows:
+        print(f"{r['name']:<30} @{r['ig_handle']:<27} {r['home_venue'] or '—'}")
+    print(f"\n{len(rows)} pending. Use 'verify' or 'reject' to action them.")
+
+
+def cmd_verify(args):
+    """Mark an auto-discovered IG handle as verified (or supply a correction)."""
+    init_db()
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM performers WHERE name = ? COLLATE NOCASE", (args.name,)
+        ).fetchone()
+    if not row:
+        print(f"Performer '{args.name}' not found.")
+        sys.exit(1)
+
+    new_handle = args.ig or row["ig_handle"]
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE performers SET ig_handle = ?, ig_confidence = 'verified', updated_at = datetime('now') WHERE id = ?",
+            (new_handle, row["id"]),
+        )
+    print(f"✓ {args.name} → @{new_handle} marked as verified")
+
+
+def cmd_reject(args):
+    """Clear an auto-discovered handle and mark the performer as unfound."""
+    init_db()
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE performers SET ig_handle = NULL, ig_confidence = 'unfound', updated_at = datetime('now') WHERE name = ? COLLATE NOCASE",
+            (args.name,),
+        )
+    print(f"✓ {args.name} → handle cleared, marked unfound")
+
+
 def cmd_link(args):
     p = store.get_performer(args.name)
     if not p:
@@ -160,6 +212,18 @@ def main():
     p_link.add_argument("url")
     p_link.add_argument("--role", default="performer")
 
+    # pending
+    sub.add_parser("pending", help="Show auto-discovered handles waiting for review")
+
+    # verify
+    p_verify = sub.add_parser("verify", help="Confirm an auto-discovered IG handle")
+    p_verify.add_argument("name")
+    p_verify.add_argument("--ig", default=None, help="Override handle if the auto-discovered one is wrong")
+
+    # reject
+    p_reject = sub.add_parser("reject", help="Clear a wrong auto-discovered handle")
+    p_reject.add_argument("name")
+
     args = parser.parse_args()
     if not args.cmd:
         parser.print_help()
@@ -168,6 +232,7 @@ def main():
     dispatch = {
         "add": cmd_add, "list": cmd_list, "search": cmd_search,
         "show": cmd_show, "link": cmd_link,
+        "pending": cmd_pending, "verify": cmd_verify, "reject": cmd_reject,
     }
     dispatch[args.cmd](args)
 

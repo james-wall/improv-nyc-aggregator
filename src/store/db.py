@@ -40,6 +40,7 @@ def init_db():
                 id             INTEGER PRIMARY KEY,
                 name           TEXT NOT NULL,
                 ig_handle      TEXT,          -- without @
+                ig_confidence  TEXT,          -- 'verified', 'auto', 'unfound', or NULL (untried)
                 twitter_handle TEXT,          -- without @
                 tiktok_handle  TEXT,          -- without @
                 website        TEXT,
@@ -63,6 +64,8 @@ def init_db():
             "ALTER TABLE shows ADD COLUMN is_class_show INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE shows ADD COLUMN show_format TEXT",
             "ALTER TABLE shows ADD COLUMN price TEXT",
+            "ALTER TABLE shows ADD COLUMN performers_extracted INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE performers ADD COLUMN ig_confidence TEXT",
         ]:
             try:
                 conn.execute(stmt)

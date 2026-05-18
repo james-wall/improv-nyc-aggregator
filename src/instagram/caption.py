@@ -65,7 +65,7 @@ def build_caption(curated: dict, date_range: str) -> str:
 
 
 def _performer_tags_for_curated(curated: dict) -> list[str]:
-    """Return IG handles for performers linked to featured shows, if any."""
+    """Return verified IG handles for performers linked to featured shows."""
     try:
         from src.store import performers as perf_store
         urls = [
@@ -78,6 +78,9 @@ def _performer_tags_for_curated(curated: dict) -> list[str]:
         seen: set[str] = set()
         for url in urls:
             for p in perf_store.get_performers_for_show_url(url):
+                # Only tag performers whose handle has been manually verified
+                if p.get("ig_confidence") != "verified":
+                    continue
                 h = p.get("ig_handle")
                 if h and h not in seen:
                     seen.add(h)

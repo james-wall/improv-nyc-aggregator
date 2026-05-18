@@ -9,6 +9,7 @@ from src.store.db import _conn, init_db
 def upsert_performer(
     name: str,
     ig_handle: str | None = None,
+    ig_confidence: str | None = None,
     twitter_handle: str | None = None,
     tiktok_handle: str | None = None,
     website: str | None = None,
@@ -31,6 +32,7 @@ def upsert_performer(
                 """
                 UPDATE performers
                 SET ig_handle      = COALESCE(?, ig_handle),
+                    ig_confidence  = COALESCE(?, ig_confidence),
                     twitter_handle = COALESCE(?, twitter_handle),
                     tiktok_handle  = COALESCE(?, tiktok_handle),
                     website        = COALESCE(?, website),
@@ -39,20 +41,20 @@ def upsert_performer(
                     updated_at     = ?
                 WHERE id = ?
                 """,
-                (ig_handle, twitter_handle, tiktok_handle, website, bio, home_venue,
-                 now, existing["id"]),
+                (ig_handle, ig_confidence, twitter_handle, tiktok_handle, website,
+                 bio, home_venue, now, existing["id"]),
             )
             return existing["id"]
         else:
             cur = conn.execute(
                 """
                 INSERT INTO performers
-                    (name, ig_handle, twitter_handle, tiktok_handle, website, bio,
-                     home_venue, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (name, ig_handle, ig_confidence, twitter_handle, tiktok_handle,
+                     website, bio, home_venue, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (name, ig_handle, twitter_handle, tiktok_handle, website, bio,
-                 home_venue, now, now),
+                (name, ig_handle, ig_confidence, twitter_handle, tiktok_handle,
+                 website, bio, home_venue, now, now),
             )
             return cur.lastrowid
 
