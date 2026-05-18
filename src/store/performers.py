@@ -1,4 +1,4 @@
-"""CRUD operations for the performers and show_performers tables."""
+"""CRUD operations for performers, show_performers, and performer_links."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ def upsert_performer(
     ig_confidence: str | None = None,
     twitter_handle: str | None = None,
     tiktok_handle: str | None = None,
+    youtube_handle: str | None = None,
+    imdb_url: str | None = None,
     website: str | None = None,
     bio: str | None = None,
     home_venue: str | None = None,
@@ -19,7 +21,7 @@ def upsert_performer(
     """Insert or update a performer. Returns the performer's id.
 
     Existing fields are preserved when None is passed, so callers can
-    update just the ig_handle without clobbering other fields.
+    update a single field without clobbering others.
     """
     init_db()
     now = datetime.utcnow().isoformat()
@@ -35,14 +37,17 @@ def upsert_performer(
                     ig_confidence  = COALESCE(?, ig_confidence),
                     twitter_handle = COALESCE(?, twitter_handle),
                     tiktok_handle  = COALESCE(?, tiktok_handle),
+                    youtube_handle = COALESCE(?, youtube_handle),
+                    imdb_url       = COALESCE(?, imdb_url),
                     website        = COALESCE(?, website),
                     bio            = COALESCE(?, bio),
                     home_venue     = COALESCE(?, home_venue),
                     updated_at     = ?
                 WHERE id = ?
                 """,
-                (ig_handle, ig_confidence, twitter_handle, tiktok_handle, website,
-                 bio, home_venue, now, existing["id"]),
+                (ig_handle, ig_confidence, twitter_handle, tiktok_handle,
+                 youtube_handle, imdb_url, website, bio, home_venue,
+                 now, existing["id"]),
             )
             return existing["id"]
         else:
@@ -50,13 +55,46 @@ def upsert_performer(
                 """
                 INSERT INTO performers
                     (name, ig_handle, ig_confidence, twitter_handle, tiktok_handle,
-                     website, bio, home_venue, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     youtube_handle, imdb_url, website, bio, home_venue,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (name, ig_handle, ig_confidence, twitter_handle, tiktok_handle,
-                 website, bio, home_venue, now, now),
+                 youtube_handle, imdb_url, website, bio, home_venue, now, now),
             )
             return cur.lastrowid
+
+
+def upsert_performer_link(
+    performer_id: int,
+    source_name: str,
+    url: str,
+    confidence: str = "auto",
+):
+    """Insert or update a profile link for a performer."""
+    init_db()
+    now = datetime.utcnow().isoformat()
+    with _conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO performer_links (performer_id, source_name, url, confidence, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(performer_id, source_name) DO UPDATE SET url = excluded.url,
+                confidence = excluded.confidence
+            """,
+            (performer_id, source_name, url, confidence, now),
+        )
+
+
+def get_performer_links(performer_id: int) -> list[dict]:
+    """Return all profile links for a performer."""
+    init_db()
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM performer_links WHERE performer_id = ? ORDER BY source_name",
+            (performer_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def link_performer_to_show(show_id: int, performer_id: int, role: str = "performer"):
@@ -107,9 +145,7 @@ def list_performers(home_venue: str | None = None) -> list[dict]:
                 (home_venue,),
             ).fetchall()
         else:
-            rows = conn.execute(
-                "SELECT * FROM performers ORDER BY name"
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM performers ORDER BY name").fetchall()
         return [dict(r) for r in rows]
 
 

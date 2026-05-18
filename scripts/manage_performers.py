@@ -36,8 +36,11 @@ def cmd_add(args):
     pid = store.upsert_performer(
         name=args.name,
         ig_handle=args.ig,
+        ig_confidence="verified" if args.ig else None,
         twitter_handle=args.twitter,
         tiktok_handle=args.tiktok,
+        youtube_handle=args.youtube,
+        imdb_url=args.imdb,
         website=args.website,
         bio=args.bio,
         home_venue=args.venue,
@@ -78,7 +81,15 @@ def cmd_show(args):
         sys.exit(1)
     _print_performer(p)
 
-    # Show linked shows
+    # Profile links
+    links = store.get_performer_links(p["id"])
+    if links:
+        print(f"\nProfile links ({len(links)}):")
+        for lnk in links:
+            flag = " [auto]" if lnk.get("confidence") == "auto" else ""
+            print(f"  {lnk['source_name']:<18} {lnk['url']}{flag}")
+
+    # Linked shows
     init_db()
     with _conn() as conn:
         rows = conn.execute(
@@ -166,11 +177,25 @@ def cmd_link(args):
     print(f"✓ Linked {p['name']} → '{show['title']}' as {args.role}")
 
 
+def cmd_add_link(args):
+    """Add a profile URL (venue roster page, press, etc.) to a performer."""
+    p = store.get_performer(args.name)
+    if not p:
+        print(f"Performer '{args.name}' not found. Add them first with 'add'.")
+        sys.exit(1)
+    store.upsert_performer_link(p["id"], args.source, args.url, confidence="verified")
+    print(f"✓ Added {args.source} → {args.url} for {p['name']}")
+
+
 def _print_performer(p: dict):
+    conf = p.get("ig_confidence") or ""
+    conf_flag = f" [{conf}]" if conf else ""
     fields = [
-        ("Instagram",  f"@{p['ig_handle']}"      if p.get("ig_handle")      else "—"),
-        ("Twitter",    f"@{p['twitter_handle']}"  if p.get("twitter_handle") else "—"),
+        ("Instagram",  (f"@{p['ig_handle']}{conf_flag}" if p.get("ig_handle") else "—")),
+        ("Twitter/X",  f"@{p['twitter_handle']}"  if p.get("twitter_handle") else "—"),
         ("TikTok",     f"@{p['tiktok_handle']}"   if p.get("tiktok_handle")  else "—"),
+        ("YouTube",    f"@{p['youtube_handle']}"  if p.get("youtube_handle") else "—"),
+        ("IMDB",       p.get("imdb_url")           or "—"),
         ("Website",    p.get("website")            or "—"),
         ("Home venue", p.get("home_venue")         or "—"),
         ("Bio",        p.get("bio")                or "—"),
@@ -187,12 +212,14 @@ def main():
     # add
     p_add = sub.add_parser("add", help="Add or update a performer")
     p_add.add_argument("name")
-    p_add.add_argument("--ig",      dest="ig",      default=None, help="Instagram handle (no @)")
-    p_add.add_argument("--twitter", dest="twitter", default=None, help="Twitter/X handle (no @)")
-    p_add.add_argument("--tiktok",  dest="tiktok",  default=None, help="TikTok handle (no @)")
-    p_add.add_argument("--website", dest="website", default=None)
-    p_add.add_argument("--bio",     dest="bio",     default=None)
-    p_add.add_argument("--venue",   dest="venue",   default=None, help="Primary home venue")
+    p_add.add_argument("--ig",      default=None, help="Instagram handle (no @)")
+    p_add.add_argument("--twitter", default=None, help="Twitter/X handle (no @)")
+    p_add.add_argument("--tiktok",  default=None, help="TikTok handle (no @)")
+    p_add.add_argument("--youtube", default=None, help="YouTube handle (no @)")
+    p_add.add_argument("--imdb",    default=None, help="IMDB profile URL")
+    p_add.add_argument("--website", default=None, help="Personal/official website URL")
+    p_add.add_argument("--bio",     default=None)
+    p_add.add_argument("--venue",   default=None, help="Primary home venue")
 
     # list
     p_list = sub.add_parser("list", help="List all performers")
@@ -218,11 +245,17 @@ def main():
     # verify
     p_verify = sub.add_parser("verify", help="Confirm an auto-discovered IG handle")
     p_verify.add_argument("name")
-    p_verify.add_argument("--ig", default=None, help="Override handle if the auto-discovered one is wrong")
+    p_verify.add_argument("--ig", default=None, help="Override if auto-discovered handle is wrong")
 
     # reject
     p_reject = sub.add_parser("reject", help="Clear a wrong auto-discovered handle")
     p_reject.add_argument("name")
+
+    # add-link  (venue roster pages, press, etc.)
+    p_al = sub.add_parser("add-link", help="Add a profile URL for a performer")
+    p_al.add_argument("name",   help="Performer name")
+    p_al.add_argument("source", help="Source label, e.g. UCB, Magnet, Linktree, press")
+    p_al.add_argument("url",    help="Full URL")
 
     args = parser.parse_args()
     if not args.cmd:
@@ -231,7 +264,7 @@ def main():
 
     dispatch = {
         "add": cmd_add, "list": cmd_list, "search": cmd_search,
-        "show": cmd_show, "link": cmd_link,
+        "show": cmd_show, "link": cmd_link, "add-link": cmd_add_link,
         "pending": cmd_pending, "verify": cmd_verify, "reject": cmd_reject,
     }
     dispatch[args.cmd](args)

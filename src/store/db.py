@@ -43,7 +43,9 @@ def init_db():
                 ig_confidence  TEXT,          -- 'verified', 'auto', 'unfound', or NULL (untried)
                 twitter_handle TEXT,          -- without @
                 tiktok_handle  TEXT,          -- without @
-                website        TEXT,
+                youtube_handle TEXT,          -- without @
+                imdb_url       TEXT,          -- full IMDB profile URL
+                website        TEXT,          -- personal/official site
                 bio            TEXT,
                 home_venue     TEXT,
                 created_at     TEXT NOT NULL,
@@ -58,6 +60,18 @@ def init_db():
                 role           TEXT,          -- 'performer', 'director', 'host', etc.
                 PRIMARY KEY (show_id, performer_id)
             );
+
+            -- Extensible profile links: venue roster pages, Linktree, press, etc.
+            -- One row per (performer, source). UNIQUE constraint so upsert is safe.
+            CREATE TABLE IF NOT EXISTS performer_links (
+                id             INTEGER PRIMARY KEY,
+                performer_id   INTEGER NOT NULL REFERENCES performers(id),
+                source_name    TEXT NOT NULL,  -- e.g. 'UCB', 'Magnet', 'Linktree', 'press'
+                url            TEXT NOT NULL,
+                confidence     TEXT,           -- 'verified' or 'auto'
+                created_at     TEXT NOT NULL,
+                UNIQUE(performer_id, source_name)
+            );
         """)
         # Migrations for existing DBs
         for stmt in [
@@ -66,6 +80,8 @@ def init_db():
             "ALTER TABLE shows ADD COLUMN price TEXT",
             "ALTER TABLE shows ADD COLUMN performers_extracted INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE performers ADD COLUMN ig_confidence TEXT",
+            "ALTER TABLE performers ADD COLUMN youtube_handle TEXT",
+            "ALTER TABLE performers ADD COLUMN imdb_url TEXT",
         ]:
             try:
                 conn.execute(stmt)
