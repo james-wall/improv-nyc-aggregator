@@ -33,8 +33,10 @@ from src.scrapers.ucb import UcbScraper
 from src.scrapers.secondcity import SecondCityScraper
 from src.scrapers.caveat import CaveatScraper
 from src.scrapers.therat import TheRatScraper
-from src.agents.summarizer import curate_events_json
 from src.venues import lookup as venue_lookup
+# NOTE: src.agents.summarizer is imported lazily inside main() — it builds a Gemini
+# client at import time (needs GEMINI_API_KEY), which the --post-instagram entrypoint
+# must not require.
 
 SUMMARY_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.txt')
 HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.html')
@@ -680,6 +682,9 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False, instagra
         print(f"  ⚠️  Performer enrichment skipped: {e}")
 
     # 3. Curate via LLM into structured per-day JSON
+    # Imported here (not at module top) so --post-instagram doesn't pull in the
+    # Gemini client, which requires GEMINI_API_KEY at import time.
+    from src.agents.summarizer import curate_events_json
     print("\n🪄 Curating newsletter with Gemini...")
     curated = curate_events_json(events, days=future_days, date_range=date_range)
     day_count = len(curated.get("days", []) or [])
