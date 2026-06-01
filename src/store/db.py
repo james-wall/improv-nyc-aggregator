@@ -34,12 +34,54 @@ def init_db():
                 start_time  TEXT NOT NULL,
                 UNIQUE(show_id, start_time)
             );
+
+            -- Performer registry: people who perform at NYC improv/sketch venues.
+            CREATE TABLE IF NOT EXISTS performers (
+                id             INTEGER PRIMARY KEY,
+                name           TEXT NOT NULL,
+                ig_handle      TEXT,          -- without @
+                ig_confidence  TEXT,          -- 'verified', 'auto', 'unfound', or NULL (untried)
+                twitter_handle TEXT,          -- without @
+                tiktok_handle  TEXT,          -- without @
+                youtube_handle TEXT,          -- without @
+                imdb_url       TEXT,          -- full IMDB profile URL
+                website        TEXT,          -- personal/official site
+                bio            TEXT,
+                home_venue     TEXT,
+                created_at     TEXT NOT NULL,
+                updated_at     TEXT NOT NULL,
+                UNIQUE(name COLLATE NOCASE)
+            );
+
+            -- Links performers to specific shows in the shows table.
+            CREATE TABLE IF NOT EXISTS show_performers (
+                show_id        INTEGER NOT NULL REFERENCES shows(id),
+                performer_id   INTEGER NOT NULL REFERENCES performers(id),
+                role           TEXT,          -- 'performer', 'director', 'host', etc.
+                PRIMARY KEY (show_id, performer_id)
+            );
+
+            -- Extensible profile links: venue roster pages, Linktree, press, etc.
+            -- One row per (performer, source). UNIQUE constraint so upsert is safe.
+            CREATE TABLE IF NOT EXISTS performer_links (
+                id             INTEGER PRIMARY KEY,
+                performer_id   INTEGER NOT NULL REFERENCES performers(id),
+                source_name    TEXT NOT NULL,  -- e.g. 'UCB', 'Magnet', 'Linktree', 'press'
+                url            TEXT NOT NULL,
+                confidence     TEXT,           -- 'verified' or 'auto'
+                created_at     TEXT NOT NULL,
+                UNIQUE(performer_id, source_name)
+            );
         """)
         # Migrations for existing DBs
         for stmt in [
             "ALTER TABLE shows ADD COLUMN is_class_show INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE shows ADD COLUMN show_format TEXT",
             "ALTER TABLE shows ADD COLUMN price TEXT",
+            "ALTER TABLE shows ADD COLUMN performers_extracted INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE performers ADD COLUMN ig_confidence TEXT",
+            "ALTER TABLE performers ADD COLUMN youtube_handle TEXT",
+            "ALTER TABLE performers ADD COLUMN imdb_url TEXT",
         ]:
             try:
                 conn.execute(stmt)

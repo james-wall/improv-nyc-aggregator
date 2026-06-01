@@ -8,19 +8,21 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Send mode'
+        description: 'Run mode'
         required: true
         default: 'draft'
         type: choice
         options:
-          - draft
-          - send
+          - draft      # email draft only — no Instagram
+          - send       # send email + post the carousel to Instagram (the full weekly run)
+          - instagram  # post the carousel to Instagram, NO email (for testing the IG flow)
+          - test       # generate + push carousel, then Instagram DRY-RUN (no email, no public post)
 
 jobs:
   send-newsletter:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # archive issues are committed back to main
+      contents: write   # archive issues and Instagram images are committed back to the branch
 
     steps:
       - uses: actions/checkout@v4
@@ -29,29 +31,59 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install system fonts
+        run: sudo apt-get install -y fonts-liberation
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate and send newsletter
+      # 1) Scrape, curate, (optionally) email, and generate the carousel images.
+      #    Image GENERATION only — posting happens after the images are pushed.
+      - name: Generate newsletter (+ carousel images)
         run: |
           if [ "${{ github.event.inputs.mode }}" = "draft" ]; then
             python scripts/generate_newsletter.py --send --draft
+          elif [ "${{ github.event.inputs.mode }}" = "test" ] || [ "${{ github.event.inputs.mode }}" = "instagram" ]; then
+            python scripts/generate_newsletter.py --instagram
           else
-            python scripts/generate_newsletter.py --send
+            python scripts/generate_newsletter.py --send --instagram
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BUTTONDOWN_API_KEY: ${{ secrets.BUTTONDOWN_API_KEY }}
 
-      - name: Commit archived issue
-        if: github.event_name == 'schedule'
+      # 2) Commit + push archive and carousel images to the CURRENT branch BEFORE posting,
+      #    so the raw.githubusercontent.com URLs Instagram fetches actually resolve.
+      - name: Commit & push archive + carousel images
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'send' || github.event.inputs.mode == 'instagram' || github.event.inputs.mode == 'test'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/archive/
+          git add docs/archive/ docs/instagram/
           if git diff --staged --quiet; then
-            echo "No archive changes to commit"
+            echo "No changes to commit"
           else
-            git commit -m "Archive issue $(date -u +%Y-%m-%d)"
+            git commit -m "Archive issue and Instagram carousel $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      # 3a) Scheduled / send / instagram run: publish the carousel for real.
+      #     CAROUSEL_IMAGE_BRANCH follows the branch this run is on, so the image
+      #     URLs point at the copies we just pushed (main on schedule, the feature
+      #     branch on a manual dispatch).
+      - name: Post carousel to Instagram
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'send' || github.event.inputs.mode == 'instagram'
+        run: python scripts/generate_newsletter.py --post-instagram
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          CAROUSEL_IMAGE_BRANCH: ${{ github.ref_name }}
+
+      # 3b) Test run: validate the whole posting chain WITHOUT publishing.
+      - name: Instagram carousel DRY-RUN (test mode)
+        if: github.event.inputs.mode == 'test'
+        run: python scripts/generate_newsletter.py --post-instagram --dry-run
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          CAROUSEL_IMAGE_BRANCH: ${{ github.ref_name }}
