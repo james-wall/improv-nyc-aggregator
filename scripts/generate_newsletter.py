@@ -16,7 +16,9 @@ import os
 import glob
 import re
 import json
+import signal
 import html as html_lib
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -45,6 +47,41 @@ CAROUSEL_STATE_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_carous
 IG_IMAGE_REPO = "james-wall/improv-nyc-aggregator"
 # Branch the images are pushed to (override for branch-based dry-runs).
 IG_IMAGE_BRANCH = os.getenv("CAROUSEL_IMAGE_BRANCH", "main")
+
+# Wall-clock cap (seconds) for the performer-enrichment step, which makes one slow
+# Gemini+Search call per performer. Overridable via env.
+PERFORMER_ENRICH_BUDGET_SEC = int(os.getenv("PERFORMER_ENRICH_BUDGET_SEC", "180"))
+
+
+class _EnrichmentTimeout(BaseException):
+    """Raised when enrichment exceeds its budget. Subclasses BaseException (not
+    Exception) on purpose, so callees' broad `except Exception` can't swallow it."""
+
+
+@contextmanager
+def _time_budget(seconds: int, label: str):
+    """Cap a block's wall-clock time with SIGALRM. No-op where SIGALRM is
+    unavailable (e.g. Windows) or we're not on the main thread."""
+    if seconds <= 0 or not hasattr(signal, "SIGALRM"):
+        yield
+        return
+
+    def _handler(signum, frame):
+        raise _EnrichmentTimeout(f"{label} exceeded {seconds}s budget")
+
+    try:
+        old = signal.signal(signal.SIGALRM, _handler)
+    except ValueError:
+        # signal only works in the main thread; run unguarded elsewhere
+        yield
+        return
+
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 
 def scrape_all(future_days: int, start_date):
@@ -626,12 +663,19 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False, instagra
         print("❌ No events found across any venue.")
         return
 
-    # 2. Extract performers from descriptions and enrich handles (non-blocking)
+    # 2. Extract performers from descriptions and enrich handles (non-blocking).
+    #    Enrichment makes one slow Gemini+Search call per performer, so cap the whole
+    #    step with a wall-clock budget — a slow or hung lookup must never stall (or
+    #    hang) the newsletter. Results persist per-performer, so a cut-off run simply
+    #    continues where it left off next week.
     try:
         from src.agents.performer_extractor import extract_performers_from_events
         from src.agents.performer_enricher import enrich_performers
-        extract_performers_from_events(events + extras)
-        enrich_performers(limit=15)
+        with _time_budget(PERFORMER_ENRICH_BUDGET_SEC, "Performer enrichment"):
+            extract_performers_from_events(events + extras)
+            enrich_performers(limit=15)
+    except _EnrichmentTimeout as e:
+        print(f"  ⏱️  Performer enrichment hit its time budget — continuing: {e}")
     except Exception as e:
         print(f"  ⚠️  Performer enrichment skipped: {e}")
 
