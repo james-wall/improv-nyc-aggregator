@@ -208,7 +208,7 @@ def generate_day_slide(day: dict, output_path: str) -> str:
 
     PAD = 60
     label = (day.get("label") or "").strip()
-    shows = list(day.get("shows") or [])
+    shows_all = list(day.get("shows") or [])
 
     # Header
     f_day = _font(52, bold=True)
@@ -219,8 +219,11 @@ def generate_day_slide(day: dict, output_path: str) -> str:
     content_top = rule_y + 30
 
     brandmark_top = H - 70
+    CLEARANCE = 14          # breathing room above the brandmark line
+    OVERFLOW_H = 38         # height of the "+N more tonight" line
+    SEP_MIN = 12            # minimum separator height (px) used for greedy fit
 
-    if not shows:
+    if not shows_all:
         draw.text((PAD, content_top),
                   "No standout shows tonight — check the venues directly.",
                   font=_font(28), fill=INK_DIM)
@@ -228,44 +231,74 @@ def generate_day_slide(day: dict, output_path: str) -> str:
         _save_jpeg(img, output_path)
         return output_path
 
-    # Density settings
-    MAX = 11
-    overflow = max(0, len(shows) - MAX)
-    shows = shows[:MAX]
-    n = len(shows)
-    with_blurb = n <= 6
-
     f_time = _font(29, bold=True)
     f_title = _font(33, bold=True)
     f_meta = _font(25)
     f_blurb = _font(24)
     f_free = _font(20, bold=True)
-
     inner_w = W - 2 * PAD
-    gap = 20 if n <= 7 else 13
 
-    # Measure total content height so we can vertically centre on light nights
-    def _row_h(s):
+    # Light nights show a short blurb; busy nights stay compact.
+    # Decide based on total show count (before any capping).
+    with_blurb = len(shows_all) <= 6
+
+    def _row_h(s) -> int:
         h = _line_h(f_title) + 4 + _line_h(f_meta) + 4
         if with_blurb and (s.get("details") or "").strip():
             h += _line_h(f_blurb) + 4
         return h
 
-    overflow_band = 36 if overflow else 0
-    separator_h = gap + 1  # 1px line + gap split equally above/below
-    content_h = (
-        sum(_row_h(s) for s in shows)
-        + separator_h * (n - 1)
-        + overflow_band
-    )
+    # ── Greedy fit ────────────────────────────────────────────────────────────
+    # Determine how many shows actually fit above the footer.  We use SEP_MIN
+    # as the inter-row gap during this pass; extra space is distributed later.
+    usable = (brandmark_top - CLEARANCE) - content_top
+    fit: list[dict] = []
+    budget = usable
+    for i, s in enumerate(shows_all):
+        sep = SEP_MIN if fit else 0
+        rh = _row_h(s)
+        remaining_after = len(shows_all) - i - 1
+        # If there will be more shows after this one that we can't show, we
+        # must reserve OVERFLOW_H for the "+N more" annotation.
+        overflow_reserve = OVERFLOW_H if remaining_after > 0 else 0
+        if budget >= sep + rh + overflow_reserve:
+            fit.append(s)
+            budget -= sep + rh
+        else:
+            break
 
-    available = brandmark_top - content_top
-    # Vertical centre only when content is notably shorter than available space
-    if content_h < available - 30:
-        y = content_top + (available - content_h) // 2
+    overflow = len(shows_all) - len(fit)
+    shows = fit
+    n = len(shows)
+
+    if n == 0:
+        _brandmark(draw)
+        _save_jpeg(img, output_path)
+        return output_path
+
+    # ── Separator size ────────────────────────────────────────────────────────
+    # Distribute leftover space as additional gap (capped at SEP_MAX).
+    SEP_MAX = 22
+    if n > 1:
+        total_row_h = sum(_row_h(s) for s in shows)
+        overflow_h = OVERFLOW_H if overflow else 0
+        gap_budget = usable - total_row_h - overflow_h
+        sep_h = min(SEP_MAX, max(SEP_MIN, gap_budget // (n - 1)))
+    else:
+        sep_h = SEP_MAX
+
+    # ── Vertical centering ────────────────────────────────────────────────────
+    rendered_h = (
+        sum(_row_h(s) for s in shows)
+        + sep_h * (n - 1)
+        + (OVERFLOW_H if overflow else 0)
+    )
+    if rendered_h < usable - 30:
+        y = content_top + (usable - rendered_h) // 2
     else:
         y = content_top
 
+    # ── Render rows ───────────────────────────────────────────────────────────
     for i, s in enumerate(shows):
         time_s = (s.get("time") or "TBA").strip()
         title = (s.get("title") or "").strip()
@@ -274,7 +307,7 @@ def generate_day_slide(day: dict, output_path: str) -> str:
         starred = bool(s.get("starred"))
         nb, _ = venue_lookup(venue)
 
-        # Line 1: time (burgundy) + ★ + title (ink)
+        # Line 1: time (burgundy) + optional ★ + title (ink)
         draw.text((PAD, y + 2), time_s, font=f_time, fill=BURGUNDY)
         x = PAD + _tw(draw, time_s, f_time) + 18
         if starred:
@@ -296,20 +329,20 @@ def generate_day_slide(day: dict, output_path: str) -> str:
                       y - 1, f_free)
         y += _line_h(f_meta) + 4
 
-        # Line 3: short blurb (light nights only)
+        # Line 3: blurb (light nights only)
         if with_blurb and details:
             draw.text((PAD, y), _trunc(draw, details, f_blurb, inner_w),
                       font=f_blurb, fill=INK_DIM)
             y += _line_h(f_blurb) + 4
 
-        # Hairline separator
+        # Hairline separator (centred in sep_h block)
         if i < n - 1:
-            y += gap // 2
-            draw.rectangle([PAD, y, W - PAD, y + 1], fill=LINE)
-            y += gap // 2 + 1
+            line_y = y + (sep_h - 1) // 2
+            draw.rectangle([PAD, line_y, W - PAD, line_y + 1], fill=LINE)
+            y += sep_h
 
     if overflow:
-        draw.text((PAD, brandmark_top - 42),
+        draw.text((PAD, y + 8),
                   f"+{overflow} more tonight — full lineup in the newsletter",
                   font=_font(23, bold=True), fill=GOLD)
 
