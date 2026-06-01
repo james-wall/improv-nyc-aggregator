@@ -46,6 +46,14 @@ def main() -> None:
         f"{BASE}/{media_id}",
         params={"access_token": TOKEN},
     )
+    if del_resp.status_code == 400:
+        # Instagram Graph API does not support programmatic media deletion for
+        # business accounts.  Print the ID so it can be deleted manually.
+        print(f"\n⚠️  Instagram API does not allow deleting posts via API (400).")
+        print(f"   Delete it manually in the Instagram app:")
+        print(f"   @ourscenenyc profile → find this carousel → ⋮ → Delete")
+        print(f"   Media ID: {media_id}  (posted {ts})")
+        sys.exit(1)
     del_resp.raise_for_status()
     result = del_resp.json()
 
