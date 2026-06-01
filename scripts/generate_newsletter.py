@@ -33,7 +33,6 @@ from src.scrapers.ucb import UcbScraper
 from src.scrapers.secondcity import SecondCityScraper
 from src.scrapers.caveat import CaveatScraper
 from src.scrapers.therat import TheRatScraper
-from src.agents.summarizer import curate_events_json
 from src.venues import lookup as venue_lookup
 
 SUMMARY_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.txt')
@@ -682,6 +681,7 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False,
 
     # 3. Curate via LLM into structured per-day JSON
     print("\n🪄 Curating newsletter with Gemini...")
+    from src.agents.summarizer import curate_events_json
     curated = curate_events_json(events, days=future_days, date_range=date_range)
     day_count = len(curated.get("days", []) or [])
     show_count = sum(len(d.get("shows", []) or []) for d in curated.get("days", []) or [])
