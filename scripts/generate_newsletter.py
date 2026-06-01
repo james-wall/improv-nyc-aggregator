@@ -649,9 +649,10 @@ def post_instagram_from_state(dry_run: bool = False) -> None:
         sys.exit(1)
 
 
-def main(future_days: int = 7, send: bool = False, draft: bool = False, instagram: bool = False):
+def main(future_days: int = 7, send: bool = False, draft: bool = False,
+         instagram: bool = False, no_tags: bool = False, from_today: bool = False):
     today = datetime.now().date()
-    start_date = today + timedelta(days=1)            # newsletter starts tomorrow
+    start_date = today if from_today else today + timedelta(days=1)
     end_date = start_date + timedelta(days=future_days - 1)
     date_range = f"{start_date.strftime('%b %d')} – {end_date.strftime('%b %d, %Y')}"
 
@@ -750,7 +751,7 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False, instagra
         week_slug    = start_date.strftime("%Y-%m-%d")
         carousel_dir = os.path.join(os.path.dirname(__file__), '..', 'docs', 'instagram', week_slug)
         slide_paths  = generate_carousel(curated, date_range, carousel_dir)
-        caption      = build_caption(curated, date_range)
+        caption      = build_caption(curated, date_range, include_tags=not no_tags)
 
         state = {
             "week_slug": week_slug,
@@ -776,8 +777,10 @@ if __name__ == "__main__":
     future_days = 7
     send_mode      = "--send"      in sys.argv
     draft_mode     = "--draft"     in sys.argv
-    instagram_mode = "--instagram" in sys.argv
-    dev_mode       = "dev"         in sys.argv
+    instagram_mode  = "--instagram"  in sys.argv
+    no_tags_mode    = "--no-tags"    in sys.argv
+    from_today_mode = "--from-today" in sys.argv
+    dev_mode        = "dev"          in sys.argv
 
     for arg in sys.argv[1:]:
         if arg.isdigit():
@@ -787,4 +790,5 @@ if __name__ == "__main__":
     if dev_mode and future_days == 7:
         future_days = 3
 
-    main(future_days=future_days, send=send_mode, draft=draft_mode, instagram=instagram_mode)
+    main(future_days=future_days, send=send_mode, draft=draft_mode,
+         instagram=instagram_mode, no_tags=no_tags_mode, from_today=from_today_mode)

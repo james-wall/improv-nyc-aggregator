@@ -17,6 +17,11 @@ on:
           - send       # send email + post the carousel to Instagram (the full weekly run)
           - instagram  # post the carousel to Instagram, NO email (for testing the IG flow)
           - test       # generate + push carousel, then Instagram DRY-RUN (no email, no public post)
+          - cleanup    # delete the most recently posted carousel from Instagram
+      from_today:
+        description: 'Start coverage from today instead of tomorrow (use when posting a day early)'
+        type: boolean
+        default: false
 
 jobs:
   send-newsletter:
@@ -40,13 +45,15 @@ jobs:
       # 1) Scrape, curate, (optionally) email, and generate the carousel images.
       #    Image GENERATION only — posting happens after the images are pushed.
       - name: Generate newsletter (+ carousel images)
+        if: github.event.inputs.mode != 'cleanup'
         run: |
+          FROM_TODAY=$( [ "${{ github.event.inputs.from_today }}" = "true" ] && echo "--from-today" || echo "" )
           if [ "${{ github.event.inputs.mode }}" = "draft" ]; then
             python scripts/generate_newsletter.py --send --draft
           elif [ "${{ github.event.inputs.mode }}" = "test" ] || [ "${{ github.event.inputs.mode }}" = "instagram" ]; then
-            python scripts/generate_newsletter.py --instagram
+            python scripts/generate_newsletter.py --instagram --no-tags $FROM_TODAY
           else
-            python scripts/generate_newsletter.py --send --instagram
+            python scripts/generate_newsletter.py --send --instagram $FROM_TODAY
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -87,3 +94,11 @@ jobs:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
           CAROUSEL_IMAGE_BRANCH: ${{ github.ref_name }}
+
+      # 4) Cleanup: delete the most recently posted carousel from Instagram.
+      - name: Delete last carousel (cleanup mode)
+        if: github.event.inputs.mode == 'cleanup'
+        run: python scripts/delete_last_carousel.py
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}

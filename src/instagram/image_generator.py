@@ -1,30 +1,35 @@
 """Generate Instagram carousel slides from curated newsletter data.
 
-Produces:
-  - One cover slide  (brand + date range + swipe CTA)
-  - One slide per day  (day header + up to 4 show cards)
+Clean, readable, information-dense — inspired by weekly-listing accounts like
+@thirstygallerina: a light background, one compact row per show, and brand
+colour as an accent rather than a full dark canvas.
 
-All slides are 1080x1080 px in the newsletter's burgundy/gold aesthetic.
+Slides: top-picks lead  →  one slide per day (every show, as a scannable list)  →  signup CTA.
+All slides are 1080x1080.
+
+NOTE: the rendering pipeline (Pillow + Liberation/Arial) cannot draw colour
+emoji — they come out as tofu boxes — so visual cues use shapes/text that always
+render: a drawn gold ★ for top picks and a green "FREE" tag.
 """
 
 from __future__ import annotations
 
+import math
 import os
+
 from PIL import Image, ImageDraw, ImageFont
 
 W, H = 1080, 1080
 
-# ── Palette ───────────────────────────────────────────────────────────────────
-BG_DARK    = (26,  17,  23)
-BG_CARD    = (30,  30,  42)
-BG_CARD_2  = (36,  32,  50)   # alternate card for starred shows
-BURGUNDY   = (139,  0,   0)
-GOLD       = (255, 215,  0)
-GOLD_LIGHT = (255, 236, 179)
-GOLD_DIM   = (180, 150,  60)
-TEXT_WHITE = (240, 234, 228)
-TEXT_DIM   = (160, 152, 168)
-FREE_GREEN = (120, 210, 130)
+# ── Palette — clean light base, burgundy + gold brand accents ──────────────────
+BG       = (250, 247, 241)   # warm off-white
+INK      = (30,  24,  28)    # near-black (titles)
+INK_DIM  = (122, 112, 118)   # secondary text (venue / neighborhood / blurb)
+BURGUNDY = (139,  0,   0)    # brand — day headers, show times
+GOLD     = (173, 134,  18)   # deeper gold, legible on light — accents, ★
+GREEN    = (28,  126,  64)   # "FREE" tag
+LINE     = (228, 221, 212)   # hairline separators
+WHITE    = (255, 255, 255)
 
 # ── Font paths ─────────────────────────────────────────────────────────────────
 _BOLD = [
@@ -59,279 +64,286 @@ def _tw(draw, text, font):
     return bb[2] - bb[0]
 
 
-def _th(draw, text, font):
-    bb = draw.textbbox((0, 0), text, font=font)
-    return bb[3] - bb[1]
+def _line_h(font):
+    """Stable line height independent of the specific glyphs drawn."""
+    asc, desc = font.getmetrics()
+    return asc + desc
+
+
+def _trunc(draw, text, font, max_px):
+    if _tw(draw, text, font) <= max_px:
+        return text
+    while len(text) > 1 and _tw(draw, text + "…", font) > max_px:
+        text = text[:-1]
+    return text.rstrip() + "…"
 
 
 def _center(draw, text, y, font, fill):
     draw.text(((W - _tw(draw, text, font)) // 2, y), text, font=font, fill=fill)
 
 
-def _trunc(draw, text, font, max_px):
-    if _tw(draw, text, font) <= max_px:
-        return text
-    while len(text) > 4 and _tw(draw, text + "…", font) > max_px:
-        text = text[:-1]
-    return text + "…"
-
-
-def _footer(draw, font):
-    draw.rectangle([0, H - 70, W, H], fill=BURGUNDY)
-    draw.rectangle([0, H - 70, W, H - 67], fill=GOLD)
-    _center(draw, "@ourscenenyc", H - 48, font, GOLD)
-
-
 def _save_jpeg(img, output_path: str) -> None:
-    """Save as JPEG — the only image format Instagram's publishing API accepts.
-
-    subsampling=0 (4:4:4) keeps the gold-on-burgundy text/edges crisp; these are
-    flat-colour graphics where the default chroma subsampling would smear type.
-    """
+    """JPEG is the only format Instagram's publishing API accepts. subsampling=0
+    (4:4:4) keeps text/edges crisp on these flat-colour graphics."""
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     img.save(output_path, "JPEG", quality=95, subsampling=0)
 
 
-# ── Cover slide ───────────────────────────────────────────────────────────────
+def _star(draw, cx, cy, r, fill):
+    """Draw a filled 5-point star centred at (cx, cy) — renders reliably (unlike ⭐)."""
+    pts = []
+    for i in range(10):
+        ang = -math.pi / 2 + i * math.pi / 5
+        rad = r if i % 2 == 0 else r * 0.42
+        pts.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang)))
+    draw.polygon(pts, fill=fill)
 
-def generate_cover_slide(curated: dict, date_range: str, output_path: str) -> str:
-    img = Image.new("RGB", (W, H), BG_DARK)
+
+def _free_tag(draw, x, y, font) -> int:
+    """Small green FREE pill; returns its width."""
+    txt = "FREE"
+    tw = _tw(draw, txt, font)
+    h = _line_h(font)
+    pad_x, pad_y = 9, 3
+    draw.rounded_rectangle([x, y, x + tw + 2 * pad_x, y + h + 2 * pad_y],
+                           radius=7, fill=GREEN)
+    draw.text((x + pad_x, y + pad_y), txt, font=font, fill=WHITE)
+    return tw + 2 * pad_x
+
+
+def _brandmark(draw):
+    """Subtle footer: thin gold rule + @ourscenenyc."""
+    f = _font(30, bold=True)
+    draw.rectangle([0, H - 70, W, H - 68], fill=GOLD)
+    _center(draw, "@ourscenenyc", H - 52, f, BURGUNDY)
+
+
+def _is_free(show) -> bool:
+    return "free" in (str(show.get("price") or "") + " " + str(show.get("title") or "")).lower()
+
+
+# ── Top-picks lead slide (one standout per night) ──────────────────────────────
+
+def generate_top_picks_slide(curated: dict, date_range: str, output_path: str) -> str:
+    """Lead slide: the single best pick for each night + a swipe prompt.
+
+    Content-first hook: immediate curated value, and a clear reason to swipe
+    through the per-night full lineups.
+    """
+    from src.venues import lookup as venue_lookup
+
+    img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
+    PAD = 58
 
-    # Top burgundy band
-    BAND_H = 260
-    draw.rectangle([0, 0, W, BAND_H], fill=BURGUNDY)
-    draw.rectangle([0, BAND_H - 4, W, BAND_H], fill=GOLD)
+    f_h = _font(50, bold=True)
+    y = 66
+    draw.text((PAD, y), "THIS WEEK'S TOP PICKS", font=f_h, fill=BURGUNDY)
+    y += _line_h(f_h) + 4
+    f_sub = _font(26)
+    draw.text((PAD, y), f"One standout each night  ·  {date_range}", font=f_sub, fill=INK_DIM)
+    y += _line_h(f_sub) + 14
+    draw.rectangle([PAD, y, W - PAD, y + 5], fill=GOLD)
+    y += 16
 
-    f_brand   = _font(86, bold=True)
-    f_sub     = _font(34)
-    f_date    = _font(42, bold=True)
-    f_stats   = _font(28)
-    f_swipe   = _font(30)
-    f_footer  = _font(32, bold=True)
+    days = [d for d in (curated.get("days") or []) if (d.get("shows") or [])]
 
-    _center(draw, "OUR SCENE", 22, f_brand, GOLD)
-    _center(draw, "NYC · IMPROV & SKETCH", 126, f_sub, GOLD_LIGHT)
-    _center(draw, "✦  Every week, curated  ✦", 176, _font(24), GOLD_DIM)
+    swipe_top = H - 166
+    band_top = y
+    band_h = swipe_top - band_top
+    n = max(1, len(days))
+    row_h = band_h / n
 
-    # Date range
-    _center(draw, date_range, 310, f_date, TEXT_WHITE)
+    f_day = _font(27, bold=True)
+    f_title = _font(31, bold=True)
+    f_meta = _font(24)
+    title_x = PAD + 98
 
-    # Stats bar
-    total_shows = sum(len(d.get("shows") or []) for d in (curated.get("days") or []))
-    days_count  = len(curated.get("days") or [])
-    _center(draw,
-            f"{total_shows} picks  ·  {days_count} nights",
-            374, f_stats, GOLD_LIGHT)
+    for i, d in enumerate(days):
+        shows = d.get("shows") or []
+        pick = next((s for s in shows if s.get("starred")), shows[0])
+        day_ab = (d.get("label") or "").split(",")[0].strip()[:3].upper()
+        title = (pick.get("title") or "").strip()
+        venue = (pick.get("venue") or "").strip()
+        time_s = (pick.get("time") or "").strip()
+        nb, _ = venue_lookup(venue)
 
-    # Day chips
-    PAD_X = 60
-    chip_y = 450
-    f_chip = _font(26, bold=True)
-    chip_gap = 12
-    days = curated.get("days") or []
+        row_y = band_top + i * row_h
+        content_h = _line_h(f_title) + _line_h(f_meta) + 4
+        cy = int(row_y + max(0, (row_h - content_h) / 2))
 
-    # Measure total width to center the row
-    chip_rects = []
-    for day in days:
-        short = (day.get("label", "").split(",")[0] or "").upper()
-        em    = day.get("emoji", "")
-        label = f"{em} {short}" if em else short
-        tw    = _tw(draw, label, f_chip)
-        chip_rects.append((label, tw + 24))   # 24px horizontal padding
+        draw.text((PAD, cy + 2), day_ab, font=f_day, fill=BURGUNDY)
+        _star(draw, title_x + 9, cy + _line_h(f_title) // 2, 12, GOLD)
+        tx = title_x + 28
+        draw.text((tx, cy), _trunc(draw, title, f_title, W - PAD - tx), font=f_title, fill=INK)
 
-    total_chips_w = sum(w for _, w in chip_rects) + chip_gap * (len(chip_rects) - 1)
-    cx = (W - total_chips_w) // 2
+        meta = time_s
+        if venue:
+            meta += f"  ·  {venue}"
+        if nb and nb != "NYC":
+            meta += f"  ·  {nb}"
+        draw.text((title_x, cy + _line_h(f_title) + 4),
+                  _trunc(draw, meta, f_meta, W - PAD - title_x), font=f_meta, fill=INK_DIM)
 
-    for label, cw in chip_rects:
-        draw.rounded_rectangle([cx, chip_y, cx + cw, chip_y + 46],
-                                radius=6, fill=BG_CARD)
-        draw.text((cx + 12, chip_y + 8), label, font=f_chip, fill=GOLD)
-        cx += cw + chip_gap
+        if i < n - 1:
+            ly = int(band_top + (i + 1) * row_h) - 2
+            draw.rectangle([PAD, ly, W - PAD, ly + 1], fill=LINE)
 
-    # Swipe CTA
-    cta_y = 560
-    draw.rounded_rectangle([W//2 - 220, cta_y, W//2 + 220, cta_y + 60],
-                            radius=30, fill=BURGUNDY)
-    draw.rounded_rectangle([W//2 - 220, cta_y, W//2 + 220, cta_y + 60],
-                            radius=30, outline=GOLD, width=2)
-    _center(draw, "Swipe for each night  →", cta_y + 14, f_swipe, GOLD)
+    draw.rectangle([PAD, swipe_top, W - PAD, swipe_top + 2], fill=GOLD)
+    _center(draw, "Swipe for every night's full lineup  →",
+            swipe_top + 22, _font(32, bold=True), BURGUNDY)
 
-    # Submission CTA
-    _center(draw, "Got a show? DM us or reply to the newsletter",
-            660, _font(24), TEXT_DIM)
-
-    _footer(draw, f_footer)
-
+    _brandmark(draw)
     _save_jpeg(img, output_path)
     return output_path
 
 
 # ── Day slide ─────────────────────────────────────────────────────────────────
 
-_FORMAT_EMOJI = {
-    "improv":      "🎭",
-    "sketch":      "✏️",
-    "open_mic":    "🎤",
-    "variety":     "🎪",
-    "standup":     "🎤",
-    "class_show":  "📚",
-    "jam":         "🎲",
-}
-
-
 def generate_day_slide(day: dict, output_path: str) -> str:
-    img = Image.new("RGB", (W, H), BG_DARK)
+    from src.venues import lookup as venue_lookup
+
+    img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
 
-    label    = day.get("label", "")
-    emoji    = day.get("emoji", "🎭")
-    shows    = (day.get("shows") or [])[:4]   # max 4 per slide
-    overflow = max(0, len(day.get("shows") or []) - 4)
+    PAD = 60
+    label = (day.get("label") or "").strip()
+    shows = list(day.get("shows") or [])
 
-    f_day_name = _font(52, bold=True)
-    f_meta     = _font(26)
-    f_venue    = _font(30, bold=True)
-    f_title    = _font(36, bold=True)
-    f_detail   = _font(24)
-    f_footer   = _font(32, bold=True)
+    # Header
+    f_day = _font(52, bold=True)
+    hdr_y = 60
+    draw.text((PAD, hdr_y), label.upper(), font=f_day, fill=BURGUNDY)
+    rule_y = hdr_y + _line_h(f_day) + 12
+    draw.rectangle([PAD, rule_y, W - PAD, rule_y + 5], fill=GOLD)
+    content_top = rule_y + 30
 
-    # ── Day header ────────────────────────────────────────────────────────────
-    HDR_H = 116
-    draw.rectangle([0, 0, W, HDR_H], fill=BURGUNDY)
-    draw.rectangle([0, HDR_H - 3, W, HDR_H], fill=GOLD)
+    brandmark_top = H - 70
 
-    short_label = label.upper()
-    hdr_text    = f"{emoji}  {short_label}"
-    draw.text((40, 28), hdr_text, font=f_day_name, fill=GOLD)
-
-    # ── Show cards ────────────────────────────────────────────────────────────
-    PAD   = 24       # horizontal padding
-    GAP   = 12       # gap between cards
-    CARD_W = W - PAD * 2
-    FOOTER_H = 70
-
-    # Distribute remaining height among cards
-    body_h  = H - HDR_H - FOOTER_H - GAP
-    n       = len(shows)
-    if n == 0:
-        _footer(draw, f_footer)
+    if not shows:
+        draw.text((PAD, content_top),
+                  "No standout shows tonight — check the venues directly.",
+                  font=_font(28), fill=INK_DIM)
+        _brandmark(draw)
         _save_jpeg(img, output_path)
         return output_path
 
-    card_h  = (body_h - GAP * (n - 1) - (36 if overflow else 0)) // n
+    # Density settings
+    MAX = 11
+    overflow = max(0, len(shows) - MAX)
+    shows = shows[:MAX]
+    n = len(shows)
+    with_blurb = n <= 6
 
-    y = HDR_H + GAP
+    f_time = _font(29, bold=True)
+    f_title = _font(33, bold=True)
+    f_meta = _font(25)
+    f_blurb = _font(24)
+    f_free = _font(20, bold=True)
 
-    for show in shows:
-        time_s    = show.get("time", "TBA")
-        venue_s   = show.get("venue", "")
-        title_s   = show.get("title", "")
-        starred   = bool(show.get("starred"))
-        details_s = show.get("details", "")
-        price_s   = show.get("price", "")
-        is_free   = "free" in (price_s or title_s or "").lower()
+    inner_w = W - 2 * PAD
+    gap = 20 if n <= 7 else 13
 
-        from src.venues import lookup as venue_lookup
-        neighborhood, _ = venue_lookup(venue_s)
+    # Measure total content height so we can vertically centre on light nights
+    def _row_h(s):
+        h = _line_h(f_title) + 4 + _line_h(f_meta) + 4
+        if with_blurb and (s.get("details") or "").strip():
+            h += _line_h(f_blurb) + 4
+        return h
 
-        bg = BG_CARD_2 if starred else BG_CARD
-        draw.rounded_rectangle([PAD, y, PAD + CARD_W, y + card_h],
-                                radius=8, fill=bg)
+    overflow_band = 36 if overflow else 0
+    separator_h = gap + 1  # 1px line + gap split equally above/below
+    content_h = (
+        sum(_row_h(s) for s in shows)
+        + separator_h * (n - 1)
+        + overflow_band
+    )
 
-        inner_x = PAD + 16
-        inner_w = CARD_W - 32
-        cy = y + 14
+    available = brandmark_top - content_top
+    # Vertical centre only when content is notably shorter than available space
+    if content_h < available - 30:
+        y = content_top + (available - content_h) // 2
+    else:
+        y = content_top
 
-        # Meta line: time · neighborhood
-        badges = []
-        if starred: badges.append("⭐")
-        if is_free:  badges.append("🆓")
-        badge_str  = " ".join(badges)
-        meta_parts = [time_s, neighborhood]
-        meta_text  = "  ·  ".join(p for p in meta_parts if p)
-        if badge_str:
-            meta_text = f"{badge_str}  {meta_text}"
-        draw.text((inner_x, cy), _trunc(draw, meta_text, f_meta, inner_w),
-                  font=f_meta, fill=GOLD)
-        cy += _th(draw, meta_text, f_meta) + 8
+    for i, s in enumerate(shows):
+        time_s = (s.get("time") or "TBA").strip()
+        title = (s.get("title") or "").strip()
+        venue = (s.get("venue") or "").strip()
+        details = (s.get("details") or "").strip()
+        starred = bool(s.get("starred"))
+        nb, _ = venue_lookup(venue)
 
-        # Venue line
-        draw.text((inner_x, cy),
-                  _trunc(draw, venue_s, f_venue, inner_w),
-                  font=f_venue, fill=GOLD_LIGHT)
-        cy += _th(draw, venue_s, f_venue) + 8
+        # Line 1: time (burgundy) + ★ + title (ink)
+        draw.text((PAD, y + 2), time_s, font=f_time, fill=BURGUNDY)
+        x = PAD + _tw(draw, time_s, f_time) + 18
+        if starred:
+            _star(draw, x + 11, y + _line_h(f_title) // 2, 13, GOLD)
+            x += 32
+        draw.text((x, y), _trunc(draw, title, f_title, W - PAD - x), font=f_title, fill=INK)
+        y += _line_h(f_title) + 4
 
-        # Title
-        draw.text((inner_x, cy),
-                  _trunc(draw, title_s, f_title, inner_w),
-                  font=f_title, fill=TEXT_WHITE)
-        cy += _th(draw, title_s, f_title) + 8
+        # Line 2: venue · neighborhood  (+ FREE tag)
+        meta = venue if venue else ""
+        if nb and nb != "NYC":
+            meta = f"{meta}  ·  {nb}" if meta else nb
+        reserve = 64 if _is_free(s) else 0
+        draw.text((PAD, y), _trunc(draw, meta, f_meta, inner_w - reserve),
+                  font=f_meta, fill=INK_DIM)
+        if _is_free(s):
+            _free_tag(draw,
+                      PAD + _tw(draw, _trunc(draw, meta, f_meta, inner_w - reserve), f_meta) + 14,
+                      y - 1, f_free)
+        y += _line_h(f_meta) + 4
 
-        # Details (if space remains)
-        remaining = (y + card_h) - cy - 14
-        if details_s and remaining >= _th(draw, "A", f_detail) + 4:
-            draw.text((inner_x, cy),
-                      _trunc(draw, details_s, f_detail, inner_w),
-                      font=f_detail, fill=TEXT_DIM)
+        # Line 3: short blurb (light nights only)
+        if with_blurb and details:
+            draw.text((PAD, y), _trunc(draw, details, f_blurb, inner_w),
+                      font=f_blurb, fill=INK_DIM)
+            y += _line_h(f_blurb) + 4
 
-        y += card_h + GAP
+        # Hairline separator
+        if i < n - 1:
+            y += gap // 2
+            draw.rectangle([PAD, y, W - PAD, y + 1], fill=LINE)
+            y += gap // 2 + 1
 
-    # Overflow note
     if overflow:
-        draw.text((PAD, y + 4),
-                  f"+ {overflow} more show{'s' if overflow > 1 else ''} in this week's newsletter →",
-                  font=_font(25), fill=TEXT_DIM)
+        draw.text((PAD, brandmark_top - 42),
+                  f"+{overflow} more tonight — full lineup in the newsletter",
+                  font=_font(23, bold=True), fill=GOLD)
 
-    _footer(draw, f_footer)
-
+    _brandmark(draw)
     _save_jpeg(img, output_path)
     return output_path
 
 
-# ── Signup CTA slide ──────────────────────────────────────────────────────────
+# ── Signup CTA slide ────────────────────────────────────────────────────────────
 
 def generate_signup_slide(output_path: str) -> str:
-    """Final carousel slide: newsletter signup CTA."""
-    img = Image.new("RGB", (W, H), BURGUNDY)
+    img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
 
-    # Gold border frame
-    B = 28
-    draw.rectangle([B, B, W - B, H - B], outline=GOLD, width=3)
-    draw.rectangle([B + 8, B + 8, W - B - 8, H - B - 8], outline=GOLD_DIM, width=1)
+    _center(draw, "Want the full lineup", 180, _font(70, bold=True), BURGUNDY)
+    _center(draw, "every week?", 262, _font(70, bold=True), BURGUNDY)
 
-    f_headline = _font(72, bold=True)
-    f_sub      = _font(36)
-    f_body     = _font(30)
-    f_cta      = _font(38, bold=True)
-    f_handle   = _font(34)
+    draw.rectangle([W // 2 - 160, 372, W // 2 + 160, 376], fill=GOLD)
 
-    _center(draw, "Want the full picks", 160, f_headline, GOLD)
-    _center(draw, "every week?", 250, f_headline, GOLD)
+    _center(draw, "Every show, every night —", 420, _font(36), INK)
+    _center(draw, "descriptions, times, the works —", 466, _font(36), INK)
+    _center(draw, "straight to your inbox.", 512, _font(36), INK)
 
-    _center(draw, "The newsletter goes deeper —", 380, f_sub, GOLD_LIGHT)
-    _center(draw, "descriptions, times, every show,", 426, f_sub, GOLD_LIGHT)
-    _center(draw, "straight to your inbox.", 472, f_sub, GOLD_LIGHT)
+    cta_y = 600
+    draw.rounded_rectangle([140, cta_y, W - 140, cta_y + 84], radius=42, fill=BURGUNDY)
+    _center(draw, "Link in bio to subscribe", cta_y + 22, _font(38, bold=True), WHITE)
 
-    # CTA box
-    box_y = 560
-    draw.rounded_rectangle([120, box_y, W - 120, box_y + 80],
-                            radius=40, fill=BG_DARK)
-    draw.rounded_rectangle([120, box_y, W - 120, box_y + 80],
-                            radius=40, outline=GOLD, width=2)
-    _center(draw, "🔗  Link in bio to subscribe", box_y + 20, f_cta, GOLD)
+    _center(draw, "Free  ·  Weekly  ·  No spam", 730, _font(30, bold=True), GOLD)
 
-    _center(draw, "Free · Weekly · No spam", 680, f_body, GOLD_DIM)
+    draw.rectangle([W // 2 - 220, 800, W // 2 + 220, 801], fill=LINE)
+    _center(draw, "Running a show worth seeing?", 826, _font(28), INK_DIM)
+    _center(draw, "DM us or reply to any newsletter", 866, _font(28), INK_DIM)
 
-    # Divider
-    draw.line([200, 740, W - 200, 740], fill=GOLD_DIM, width=1)
-
-    _center(draw, "Got a show to feature?", 768, f_body, GOLD_LIGHT)
-    _center(draw, "DM us or reply to any newsletter", 808, f_body, GOLD_LIGHT)
-
-    _center(draw, "@ourscenenyc", 890, f_handle, GOLD)
-
+    _brandmark(draw)
     _save_jpeg(img, output_path)
     return output_path
 
@@ -339,20 +351,17 @@ def generate_signup_slide(output_path: str) -> str:
 # ── Carousel entry point ──────────────────────────────────────────────────────
 
 def generate_carousel(curated: dict, date_range: str, output_dir: str) -> list[str]:
-    """Generate all carousel slides. Returns list of file paths in order.
-
-    Slide order: cover → one per day → signup CTA
-    Instagram allows up to 10 slides; with 7 days that's 9 total — within limit.
-    """
+    """Generate all carousel slides. Returns file paths in order:
+    top-picks lead → one per day → signup CTA. Up to 10 slides (1 + 7 days + 1 = 9)."""
     os.makedirs(output_dir, exist_ok=True)
     paths = []
 
-    cover = os.path.join(output_dir, "00_cover.jpg")
-    generate_cover_slide(curated, date_range, cover)
-    paths.append(cover)
+    lead = os.path.join(output_dir, "00_picks.jpg")
+    generate_top_picks_slide(curated, date_range, lead)
+    paths.append(lead)
 
     for i, day in enumerate(curated.get("days") or [], start=1):
-        date_iso   = day.get("date_iso", f"day{i:02d}")
+        date_iso = day.get("date_iso", f"day{i:02d}")
         slide_path = os.path.join(output_dir, f"{i:02d}_{date_iso}.jpg")
         generate_day_slide(day, slide_path)
         paths.append(slide_path)
