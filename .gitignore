@@ -217,6 +217,7 @@ token.json
 last_summary.txt
 last_newsletter.html
 last_newsletter.txt
+last_carousel.json
 
 # macOS
 .DS_Store

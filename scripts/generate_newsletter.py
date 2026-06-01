@@ -15,6 +15,7 @@ import sys
 import os
 import glob
 import re
+import json
 import html as html_lib
 from datetime import date, datetime, timedelta
 
@@ -36,6 +37,14 @@ from src.venues import lookup as venue_lookup
 SUMMARY_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.txt')
 HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_newsletter.html')
 ARCHIVE_DIR = os.path.join(os.path.dirname(__file__), '..', 'docs', 'archive')
+
+# State written by the --instagram (generate) step and consumed by the
+# --post-instagram (publish) step, so posting doesn't have to re-scrape.
+CAROUSEL_STATE_FILE = os.path.join(os.path.dirname(__file__), '..', 'last_carousel.json')
+# Public repo that hosts the carousel images for Instagram to fetch by URL.
+IG_IMAGE_REPO = "james-wall/improv-nyc-aggregator"
+# Branch the images are pushed to (override for branch-based dry-runs).
+IG_IMAGE_BRANCH = os.getenv("CAROUSEL_IMAGE_BRANCH", "main")
 
 
 def scrape_all(future_days: int, start_date):
@@ -538,6 +547,71 @@ def archive_issue(issue_date: date, html: str) -> None:
     print(f"🗄  Rebuilt archive index")
 
 
+# ---------------------------------------------------------------------------
+# Instagram posting (separate step — runs AFTER images are pushed public)
+# ---------------------------------------------------------------------------
+
+def _wait_for_url(url: str, timeout: int = 120, interval: int = 5) -> bool:
+    """Poll a public URL until it returns HTTP 200.
+
+    raw.githubusercontent.com can lag a few seconds behind a push; this avoids
+    a flaky failure when Instagram tries to fetch an image that isn't live yet.
+    """
+    import time
+    import requests
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            if requests.head(url, timeout=15, allow_redirects=True).status_code == 200:
+                return True
+        except requests.RequestException:
+            pass
+        time.sleep(interval)
+    return False
+
+
+def post_instagram_from_state(dry_run: bool = False) -> None:
+    """Publish (or dry-run) the carousel using state saved by a prior --instagram run.
+
+    Image URLs point at the committed-and-pushed copies on the public repo, so
+    this must run only AFTER those images are pushed (see the GitHub Actions
+    workflow ordering).
+    """
+    if not (os.getenv("INSTAGRAM_ACCESS_TOKEN") and os.getenv("INSTAGRAM_ACCOUNT_ID")):
+        print("  ⚠️  INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID not set — cannot post.")
+        sys.exit(1)
+    if not os.path.exists(CAROUSEL_STATE_FILE):
+        print(f"❌ No carousel state at {CAROUSEL_STATE_FILE}. Run with --instagram first.")
+        sys.exit(1)
+
+    with open(CAROUSEL_STATE_FILE, encoding="utf-8") as f:
+        state = json.load(f)
+
+    week_slug = state["week_slug"]
+    base_url = (
+        f"https://raw.githubusercontent.com/{IG_IMAGE_REPO}/{IG_IMAGE_BRANCH}"
+        f"/docs/instagram/{week_slug}"
+    )
+    img_urls = [f"{base_url}/{name}" for name in state["slide_filenames"]]
+
+    label = "DRY RUN — " if dry_run else ""
+    print(f"\n📸 {label}Posting carousel ({len(img_urls)} slides) from '{IG_IMAGE_BRANCH}'")
+
+    # Make sure the first image is actually live before handing URLs to Instagram.
+    if not _wait_for_url(img_urls[0]):
+        print(f"❌ Carousel image not reachable: {img_urls[0]}")
+        print("   (Are the images committed + pushed to the public repo/branch?)")
+        sys.exit(1)
+
+    from src.instagram.poster import post_carousel
+    try:
+        post_carousel(image_urls=img_urls, caption=state["caption"], dry_run=dry_run)
+    except Exception as e:
+        print(f"❌ Instagram carousel {'dry-run' if dry_run else 'post'} failed: {e}")
+        sys.exit(1)
+
+
 def main(future_days: int = 7, send: bool = False, draft: bool = False, instagram: bool = False):
     today = datetime.now().date()
     start_date = today + timedelta(days=1)            # newsletter starts tomorrow
@@ -619,38 +693,42 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False, instagra
                 print("   Make sure GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set.")
                 sys.exit(1)
 
-    # 6. Optionally post to Instagram carousel
+    # 6. Optionally generate the Instagram carousel.
+    #    GENERATION ONLY — publishing happens in a separate step (--post-instagram)
+    #    AFTER the images are committed + pushed, so Instagram can fetch them by
+    #    public URL. (Instagram fetches image_url server-side; if we posted here,
+    #    before the push, the raw.githubusercontent URLs would 404.)
     if instagram:
         print("\n📸 Generating Instagram carousel...")
         from src.instagram.image_generator import generate_carousel
         from src.instagram.caption import build_caption
 
-        week_slug     = start_date.strftime("%Y-%m-%d")
-        carousel_dir  = os.path.join(os.path.dirname(__file__), '..', 'docs', 'instagram', week_slug)
-        slide_paths   = generate_carousel(curated, date_range, carousel_dir)
+        week_slug    = start_date.strftime("%Y-%m-%d")
+        carousel_dir = os.path.join(os.path.dirname(__file__), '..', 'docs', 'instagram', week_slug)
+        slide_paths  = generate_carousel(curated, date_range, carousel_dir)
+        caption      = build_caption(curated, date_range)
 
-        if os.getenv("INSTAGRAM_ACCESS_TOKEN") and os.getenv("INSTAGRAM_ACCOUNT_ID"):
-            from src.instagram.poster import post_carousel
-            # raw.githubusercontent.com is available immediately after the
-            # Actions commit+push step — no CDN delay like GitHub Pages.
-            repo = "james-wall/improv-nyc-aggregator"
-            base_url = f"https://raw.githubusercontent.com/{repo}/main/docs/instagram/{week_slug}"
-            img_urls = [
-                f"{base_url}/{os.path.basename(p)}"
-                for p in slide_paths
-            ]
-            caption = build_caption(curated, date_range)
-            print(f"  📝 Caption preview:\n{caption[:300]}…")
-            try:
-                post_carousel(image_urls=img_urls, caption=caption)
-            except Exception as e:
-                print(f"❌ Instagram carousel post failed: {e}")
-                sys.exit(1)
-        else:
-            print("  ⚠️  INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID not set — slides saved locally only.")
+        state = {
+            "week_slug": week_slug,
+            "slide_filenames": [os.path.basename(p) for p in slide_paths],
+            "caption": caption,
+            "date_range": date_range,
+        }
+        with open(CAROUSEL_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+        print(f"  💾 Carousel state saved to {os.path.basename(CAROUSEL_STATE_FILE)} "
+              f"({len(slide_paths)} slides)")
+        print(f"  📝 Caption preview:\n{caption[:300]}…")
+        print("  ➡️  Commit/push the images, then run with --post-instagram to publish.")
 
 
 if __name__ == "__main__":
+    # Posting is a standalone step (no scraping): publish the carousel that a
+    # prior --instagram run generated and that has since been pushed public.
+    if "--post-instagram" in sys.argv:
+        post_instagram_from_state(dry_run="--dry-run" in sys.argv)
+        sys.exit(0)
+
     future_days = 7
     send_mode      = "--send"      in sys.argv
     draft_mode     = "--draft"     in sys.argv

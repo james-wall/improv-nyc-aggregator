@@ -82,6 +82,16 @@ def _footer(draw, font):
     _center(draw, "@ourscenenyc", H - 48, font, GOLD)
 
 
+def _save_jpeg(img, output_path: str) -> None:
+    """Save as JPEG — the only image format Instagram's publishing API accepts.
+
+    subsampling=0 (4:4:4) keeps the gold-on-burgundy text/edges crisp; these are
+    flat-colour graphics where the default chroma subsampling would smear type.
+    """
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    img.save(output_path, "JPEG", quality=95, subsampling=0)
+
+
 # ── Cover slide ───────────────────────────────────────────────────────────────
 
 def generate_cover_slide(curated: dict, date_range: str, output_path: str) -> str:
@@ -153,8 +163,7 @@ def generate_cover_slide(curated: dict, date_range: str, output_path: str) -> st
 
     _footer(draw, f_footer)
 
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    img.save(output_path, "PNG")
+    _save_jpeg(img, output_path)
     return output_path
 
 
@@ -207,8 +216,7 @@ def generate_day_slide(day: dict, output_path: str) -> str:
     n       = len(shows)
     if n == 0:
         _footer(draw, f_footer)
-        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        img.save(output_path, "PNG")
+        _save_jpeg(img, output_path)
         return output_path
 
     card_h  = (body_h - GAP * (n - 1) - (36 if overflow else 0)) // n
@@ -277,8 +285,7 @@ def generate_day_slide(day: dict, output_path: str) -> str:
 
     _footer(draw, f_footer)
 
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    img.save(output_path, "PNG")
+    _save_jpeg(img, output_path)
     return output_path
 
 
@@ -325,8 +332,7 @@ def generate_signup_slide(output_path: str) -> str:
 
     _center(draw, "@ourscenenyc", 890, f_handle, GOLD)
 
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    img.save(output_path, "PNG")
+    _save_jpeg(img, output_path)
     return output_path
 
 
@@ -341,17 +347,17 @@ def generate_carousel(curated: dict, date_range: str, output_dir: str) -> list[s
     os.makedirs(output_dir, exist_ok=True)
     paths = []
 
-    cover = os.path.join(output_dir, "00_cover.png")
+    cover = os.path.join(output_dir, "00_cover.jpg")
     generate_cover_slide(curated, date_range, cover)
     paths.append(cover)
 
     for i, day in enumerate(curated.get("days") or [], start=1):
         date_iso   = day.get("date_iso", f"day{i:02d}")
-        slide_path = os.path.join(output_dir, f"{i:02d}_{date_iso}.png")
+        slide_path = os.path.join(output_dir, f"{i:02d}_{date_iso}.jpg")
         generate_day_slide(day, slide_path)
         paths.append(slide_path)
 
-    signup = os.path.join(output_dir, "99_signup.png")
+    signup = os.path.join(output_dir, "99_signup.jpg")
     generate_signup_slide(signup)
     paths.append(signup)
 

@@ -1,0 +1,42 @@
+name: Refresh Instagram Token
+
+# Instagram long-lived tokens last 60 days; refreshing one (it must be >24h old and
+# not expired) extends it another 60. Running weekly keeps INSTAGRAM_ACCESS_TOKEN from
+# ever lapsing.
+#
+# Requires a secret GH_PAT_SECRETS: a fine-grained Personal Access Token scoped to this
+# repo with "Secrets" repository permission = Read and write (the default GITHUB_TOKEN
+# cannot write Actions secrets).
+#
+# NOTE: scheduled workflows only run from the DEFAULT branch, so the weekly cron takes
+# effect once this file is on `main`. You can run it any time via "Run workflow".
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Mondays 08:00 UTC (off-cycle from the Sunday newsletter)
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install requests
+
+      - name: Refresh token and update the secret
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT_SECRETS }}
+        run: |
+          # Capture the new token via stdout; diagnostics go to stderr (kept out of the var).
+          NEW_TOKEN="$(python scripts/refresh_instagram_token.py)"
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "Refresh produced no token — see the step logs above."
+            exit 1
+          fi
+          printf '%s' "$NEW_TOKEN" | gh secret set INSTAGRAM_ACCESS_TOKEN --repo "$GITHUB_REPOSITORY"
+          echo "✅ INSTAGRAM_ACCESS_TOKEN refreshed and updated."
