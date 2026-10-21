@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from datetime import datetime
 from typing import List
 
@@ -8,6 +9,12 @@ from dotenv import load_dotenv
 from google import genai
 from pydantic import BaseModel
 
+from src.config import (
+    CURATION_MAX_OUTPUT_TOKENS,
+    CURATION_THINKING_BUDGET,
+    GEMINI_FALLBACK_MODEL,
+    GEMINI_MODEL,
+)
 from src.models import Event
 
 
@@ -43,7 +50,7 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 #     location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
 # )
 
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = GEMINI_MODEL
 
 PROMPT_REGISTRY = {
     "default": "src/prompts/summarizer_prompt.txt",
@@ -135,11 +142,117 @@ def summarize_events(events: List[Event], style: str = "default",
         return "[Error generating summary]"
 
 
+# Retry policy for transient Gemini errors (429 quota/rate limit, 5xx overload).
+# Waits are per model and bounded so a quota outage costs at most ~45s per model
+# before we move on to the fallback model and then the deterministic listing.
+_RETRYABLE_CODES = {429, 500, 503, 504}
+_RETRY_WAITS = (15, 30)  # seconds between the 3 attempts on one model
+_sleep = time.sleep  # patched in tests
+
+
+def _error_code(err: Exception) -> int | None:
+    code = getattr(err, "code", None)
+    return code if isinstance(code, int) else None
+
+
+def _parse_curated(response) -> dict | None:
+    """Return the curated dict, or None if the response is truncated/unparseable."""
+    parsed_obj = getattr(response, "parsed", None)
+    if parsed_obj is not None:
+        return parsed_obj.model_dump()
+
+    raw = (getattr(response, "text", None) or "").strip()
+    # Strip code fences if the model wraps the JSON
+    fenced = re.match(r"^```(?:json)?\s*(.*?)\s*```$", raw, re.DOTALL)
+    if fenced:
+        raw = fenced.group(1)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"⚠️  Could not parse curated JSON ({e}). Raw output:\n{raw[:500]}")
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("days"), list):
+        print(f"⚠️  Curated JSON has no 'days' list. Raw output:\n{raw[:500]}")
+        return None
+    return data
+
+
+def _show_count(curated: dict) -> int:
+    return sum(len(d.get("shows") or []) for d in curated.get("days") or [])
+
+
+def _call_model(model: str, prompt: str) -> dict | None:
+    """Up to 3 attempts on one model with bounded backoff on retryable errors."""
+    for attempt in range(len(_RETRY_WAITS) + 1):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": CuratedNewsletter,
+                    "max_output_tokens": CURATION_MAX_OUTPUT_TOKENS,
+                    "thinking_config": {"thinking_budget": CURATION_THINKING_BUDGET},
+                },
+            )
+        except Exception as e:
+            code = _error_code(e)
+            if code in _RETRYABLE_CODES and attempt < len(_RETRY_WAITS):
+                wait = _RETRY_WAITS[attempt]
+                print(f"⚠️  {model} failed (attempt {attempt + 1}, HTTP {code}): {e}. "
+                      f"Retrying in {wait}s...")
+                _sleep(wait)
+                continue
+            print(f"❌ {model} failed (attempt {attempt + 1}, HTTP {code}): {e}")
+            return None
+        # A truncated or malformed answer won't improve by asking the same
+        # model again with the same prompt; let the caller try the next model.
+        return _parse_curated(response)
+    return None
+
+
+def fallback_listing(events: List[Event]) -> dict:
+    """Deterministic, uncurated listing of every dated event, by day then time/venue.
+
+    Used when Gemini curation fails so the issue is never silently empty.
+    """
+    from collections import defaultdict
+    from src.utils.formatting import normalize_title
+
+    by_day = defaultdict(list)
+    for e in events:
+        if e.start_time:
+            by_day[e.start_time.date()].append(e)
+
+    days = []
+    for day in sorted(by_day):
+        shows = []
+        for e in sorted(by_day[day], key=lambda e: (not e.time_known, e.start_time, e.venue, e.title)):
+            shows.append({
+                "time": e.start_time.strftime("%I:%M %p").lstrip("0") if e.time_known else "TBA",
+                "venue": e.venue,
+                "title": normalize_title(e.title),
+                "url": e.url or "",
+                "starred": False,
+                "details": e.price or "",
+            })
+        days.append({
+            "date_iso": day.isoformat(),
+            "label": f"{day.strftime('%A, %B')} {day.day}",
+            "emoji": "🎭",
+            "shows": shows,
+        })
+    return {"days": days}
+
+
 def curate_events_json(events: List[Event], days: int, date_range: str) -> dict:
     """Ask the LLM to curate events into a structured per-day JSON object.
 
     Returns a dict with key "days" — see newsletter_json_prompt.txt for schema.
-    On parse failure, returns {"days": []} so the caller can degrade gracefully.
+    Tries GEMINI_MODEL then GEMINI_FALLBACK_MODEL (with backoff on 429/5xx).
+    If both fail or return truncated/empty JSON, returns fallback_listing(events)
+    with "fallback": True. Returns {"days": []} only when there is nothing to
+    list, which generate_newsletter.py treats as fail-closed (no send/post).
     """
     if not events:
         return {"days": []}
@@ -152,50 +265,22 @@ def curate_events_json(events: List[Event], days: int, date_range: str) -> dict:
         venue_list=", ".join(venues),
     )
 
-    import time as _time
-    raw = ""
-    parsed_obj: CuratedNewsletter | None = None
-    last_err: Exception | None = None
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=prompt,
-                config={
-                    "response_mime_type": "application/json",
-                    "response_schema": CuratedNewsletter,
-                    "max_output_tokens": 32768,
-                },
-            )
-            # The SDK exposes the parsed pydantic object directly when a
-            # response_schema is provided.
-            parsed_obj = getattr(response, "parsed", None)
-            raw = response.text or ""
-            last_err = None
-            break
-        except Exception as e:
-            last_err = e
-            wait = 2 ** attempt + 1  # 2s, 3s, 5s
-            print(f"⚠️  Gemini call failed (attempt {attempt + 1}/3): {e}. Retrying in {wait}s...")
-            _time.sleep(wait)
-    if last_err is not None:
-        print(f"❌ Gemini call failed after 3 attempts: {last_err}")
+    for model in (GEMINI_MODEL, GEMINI_FALLBACK_MODEL):
+        curated = _call_model(model, prompt)
+        if curated is not None and _show_count(curated) > 0:
+            if model != GEMINI_MODEL:
+                print(f"ℹ️  Curated with fallback model {model}")
+            return curated
+        if curated is not None:
+            print(f"⚠️  {model} returned 0 curated shows from {len(events)} events")
+
+    listing = fallback_listing(events)
+    if _show_count(listing) == 0:
         return {"days": []}
-
-    if parsed_obj is not None:
-        return parsed_obj.model_dump()
-
-    # Strip code fences if the model wraps the JSON
-    raw = raw.strip()
-    fenced = re.match(r"^```(?:json)?\s*(.*?)\s*```$", raw, re.DOTALL)
-    if fenced:
-        raw = fenced.group(1)
-
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as e:
-        print(f"⚠️  Could not parse curated JSON ({e}). Raw output:\n{raw[:500]}")
-        return {"days": []}
+    print(f"⚠️  Gemini curation failed on all models; using deterministic fallback "
+          f"listing of {_show_count(listing)} shows (uncurated).")
+    listing["fallback"] = True
+    return listing
 
 
 if __name__ == "__main__":

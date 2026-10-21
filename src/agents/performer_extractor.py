@@ -15,10 +15,12 @@ import time
 from google import genai
 from dotenv import load_dotenv
 
+from src.config import GEMINI_MODEL
+
 load_dotenv()
 
 _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-_MODEL = "gemini-2.5-flash"
+_MODEL = GEMINI_MODEL
 
 _EXTRACTION_PROMPT = """\
 Given the show title and description below, extract any clear individual human performer names.
