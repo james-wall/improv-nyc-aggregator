@@ -711,6 +711,14 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False,
         f.write(html)
     print(f"💾 HTML saved to last_newsletter.html")
 
+    # Fail closed: if venues returned events but curation produced nothing (Gemini 429/503,
+    # truncated JSON), the issue would go out as extras only under "No standout shows".
+    # Stop here so nothing is sent or posted; a draft is still allowed for inspection.
+    if events and show_count == 0 and not draft:
+        print(f"❌ Curation returned 0 shows from {len(events)} scraped events; "
+              "refusing to send or post. Re-run once Gemini curation succeeds.")
+        sys.exit(1)
+
     # 5. Optionally send
     if send:
         subject = f"This Week in NYC Improv & Sketch 🎭 ({date_range})"
