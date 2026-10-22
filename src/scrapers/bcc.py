@@ -161,12 +161,22 @@ class BccScraper:
         return dt
 
     @staticmethod
-    def _extract_venue(soup: BeautifulSoup, entry: dict) -> str:
+    def _clean_name(value: str) -> str:
+        """Drop BOM / zero-width characters and collapse whitespace.
+
+        Squarespace sometimes embeds U+FEFF inside location names
+        (``T\ufeffhe BCC Pig Pen``), which then shows up as a separate venue.
+        """
+        value = re.sub(r"[\ufeff\u200b\u200c\u200d\u2060]", "", value or "")
+        return " ".join(value.split())
+
+    @classmethod
+    def _extract_venue(cls, soup: BeautifulSoup, entry: dict) -> str:
         """Try to find which BCC stage hosts the show."""
         # JSON-LD location.name is often present
         loc = entry.get("location") or {}
         if isinstance(loc, dict):
-            name = loc.get("name")
+            name = cls._clean_name(loc.get("name") or "")
             if name:
                 if name.upper().startswith("BCC"):
                     return name
@@ -175,7 +185,7 @@ class BccScraper:
         # Fall back to category tags rendered on the page
         tag = soup.find("a", class_=re.compile("eventlist-cat"))
         if tag:
-            text = tag.get_text(strip=True)
+            text = cls._clean_name(tag.get_text(strip=True))
             if text:
                 return text if text.upper().startswith("BCC") else f"BCC {text}"
 
