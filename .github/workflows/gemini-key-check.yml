@@ -1,0 +1,28 @@
+# Temporary (2026-10-23): checks that the GEMINI_API_KEY secret works and is on a paid tier. Prints status codes and
+# Google's error messages only, never the key. Delete this branch after the run.
+name: gemini-key-check
+on:
+  push:
+    branches: [ci/gemini-key-check]
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Seven calls to gemini-2.5-flash within a minute (free tier allows 5)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then echo "RESULT: secret GEMINI_API_KEY is empty or missing"; exit 1; fi
+          ok=0
+          for i in 1 2 3 4 5 6 7; do
+            code=$(curl -s -o r.json -w '%{http_code}' \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+              -H "x-goog-api-key: $GEMINI_API_KEY" -H 'Content-Type: application/json' \
+              -d '{"contents":[{"parts":[{"text":"Reply with the single word OK."}]}],"generationConfig":{"maxOutputTokens":20,"thinkingConfig":{"thinkingBudget":0}}}')
+            if [ "$code" = 200 ]; then ok=$((ok+1)); echo "call $i: 200 $(jq -r '.candidates[0].content.parts[0].text // ""' r.json | head -c 20)"
+            else echo "call $i: $code $(jq -r '.error.status + ": " + .error.message' r.json 2>/dev/null | head -c 300)"; fi
+          done
+          echo "RESULT: $ok of 7 calls succeeded"
+          [ "$ok" = 7 ]
