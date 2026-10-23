@@ -23,10 +23,12 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
+from src.config import GEMINI_MODEL
+
 load_dotenv()
 
 _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-_MODEL = "gemini-2.0-flash"
+_MODEL = GEMINI_MODEL
 
 _SEARCH_PROMPT = """\
 Search the web for the online presence of this performer: {name}

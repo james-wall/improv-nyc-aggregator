@@ -686,6 +686,8 @@ def main(future_days: int = 7, send: bool = False, draft: bool = False,
     day_count = len(curated.get("days", []) or [])
     show_count = sum(len(d.get("shows", []) or []) for d in curated.get("days", []) or [])
     print(f"  📋 {day_count} days, {show_count} curated shows")
+    if curated.get("fallback"):
+        print("  ⚠️  Using the uncurated fallback listing (Gemini curation failed).")
 
     # Validate that every scraped venue made it into the curated output.
     scraped_venues = {e.venue for e in events}
