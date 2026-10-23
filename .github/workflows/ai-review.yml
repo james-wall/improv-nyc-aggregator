@@ -1,0 +1,64 @@
+# AI review gate (James, 2026-10-23). Replaces the GitHub Models version in PR #7: GitHub Models was retired on
+# 2026-07-30. Claude reviews the PR diff and returns a structured verdict; the "Gate" step fails the check on
+# verdict=fail, so a ruleset can require the `ai-review` check before (auto-)merge.
+# Needs: the Claude GitHub App on this repo and the CLAUDE_CODE_OAUTH_TOKEN secret (from `claude setup-token`;
+# it uses James's Max subscription, shared with the agent's own jobs). Same gate as james-wall/revenue-agent.
+name: ai-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ai-review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are the merge gate for PR #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+            Review the change with `git diff origin/${{ github.base_ref }}...HEAD` and read files as needed.
+            Return verdict "fail" only for a problem that should block the merge:
+            - a correctness bug the change introduces (wrong result, crash, data loss, broken test);
+            - a security problem (a secret or key committed, unsafe handling of untrusted input, an injection);
+            - a test deleted, skipped or weakened to make CI pass;
+            - a change to .github/workflows that widens permissions or exposes secrets.
+            Style, naming and nits are never a fail: mention them in the summary. Otherwise return "pass".
+            Keep the summary under 15 lines; for a fail, name the file and line and what to change.
+          claude_args: |
+            --max-turns 15
+            --allowedTools "Bash(git diff:*),Bash(git log:*),Read,Grep,Glob"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["pass","fail"]},"summary":{"type":"string"}},"required":["verdict","summary"],"additionalProperties":false}'
+
+      - name: Gate
+        if: always()
+        env:
+          OUT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          if [ -z "$OUT" ]; then
+            echo "::error::No verdict from the review (the review step failed, hit a limit, or the secret is missing)."
+            exit 1
+          fi
+          verdict=$(jq -r '.verdict // empty' <<<"$OUT")
+          jq -r '.summary // ""' <<<"$OUT" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$verdict" != "pass" ]; then
+            echo "::error::ai-review verdict: ${verdict:-none}"
+            exit 1
+          fi
